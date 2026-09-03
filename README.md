@@ -20,7 +20,7 @@ API REST para una plataforma de eventos e inscripciones.
 Clonar el repositorio:
 
 ```bash
-git clone URL_DEL_REPOSITORIO
+git clone https://github.com/agush1t/eventify-api.git
 ```
 
 Ingresar a la carpeta del proyecto:
