@@ -21,7 +21,7 @@ Clonar el repositorio:
 
 ```bash
 git clone https://github.com/agush1t/eventify-api.git
-
+```
 
 Ingresar a la carpeta del proyecto:
 
