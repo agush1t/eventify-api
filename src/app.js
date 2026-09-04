@@ -1,10 +1,8 @@
 import express from 'express';
-import dotenv from 'dotenv';
 
 import eventsRouter from './routes/events.router.js';
 import sessionsRouter from './routes/sessions.router.js';
-
-dotenv.config();
+import errorHandler from './middlewares/errorHandler.js';
 
 const app = express();
 
@@ -19,5 +17,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/events', eventsRouter);
 app.use('/api/sessions', sessionsRouter);
+
+app.use(errorHandler);
 
 export default app;
