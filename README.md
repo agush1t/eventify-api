@@ -1,10 +1,10 @@
 # Eventify API
 
-API REST para una plataforma de eventos e inscripciones.
+API REST para una plataforma de gestión de eventos e inscripciones.
 
 ## Temática del proyecto
 
-**Eventify** es una plataforma destinada a la gestión de eventos e inscripciones. La API permitirá administrar usuarios, eventos e inscripciones, y servirá como base para incorporar funcionalidades de autenticación, autorización y gestión de cupos en futuras entregas.
+**Eventify** es una plataforma destinada a la gestión de eventos e inscripciones. La API está organizada utilizando una arquitectura por capas y se encuentra preparada para incorporar funcionalidades de autenticación, autorización, gestión de usuarios, eventos, inscripciones y control de cupos.
 
 ## Tecnologías
 
@@ -13,7 +13,28 @@ API REST para una plataforma de eventos e inscripciones.
 * JavaScript
 * ECMAScript Modules (ESM)
 * dotenv
-* MongoDB (preparado para futuras etapas)
+* Mongoose
+* MongoDB Atlas
+
+## Arquitectura
+
+El proyecto utiliza una arquitectura organizada por capas, separando las responsabilidades de cada componente:
+
+```text
+Route
+  ↓
+Controller
+  ↓
+Service
+  ↓
+Repository
+  ↓
+DAO
+  ↓
+Base de datos / fuente de datos
+```
+
+Esta estructura permite mantener el código organizado, facilitar su mantenimiento y desacoplar la lógica de negocio del acceso a los datos.
 
 ## Instalación
 
@@ -37,18 +58,20 @@ npm install
 
 ## Variables de entorno
 
-Crear un archivo `.env` en la raíz del proyecto tomando como referencia el archivo `.env.example`.
+Crear un archivo `.env` en la raíz del proyecto tomando como referencia `.env.example`.
 
 Las variables utilizadas son:
 
 ```env
 PORT=8080
 NODE_ENV=development
-MONGO_URL=mongodb://localhost:27017/eventify
+MONGO_URL=mongodb+srv://<usuario>:<contraseña>@<cluster>/eventify
 JWT_SECRET=clave_secreta
 ```
 
-El archivo `.env` contiene información que no debe ser publicada en el repositorio.
+> La variable `MONGO_URL` contiene la cadena de conexión utilizada para conectar la aplicación con MongoDB Atlas.
+
+El archivo `.env` contiene información sensible y se encuentra incluido en `.gitignore`, por lo que no debe ser publicado en el repositorio.
 
 ## Ejecución
 
@@ -64,7 +87,9 @@ Para ejecutar el servidor en modo desarrollo:
 npm run dev
 ```
 
-El servidor se iniciará utilizando el puerto configurado mediante la variable de entorno `PORT`.
+El servidor utiliza el puerto configurado mediante la variable de entorno `PORT`.
+
+Al iniciar correctamente, la aplicación establece la conexión con MongoDB y luego inicia el servidor Express.
 
 ## Estructura de carpetas
 
@@ -73,6 +98,8 @@ src/
 ├── app.js
 ├── server.js
 ├── config/
+│   ├── config.js
+│   └── database.js
 ├── routes/
 │   ├── events.router.js
 │   └── sessions.router.js
@@ -80,14 +107,56 @@ src/
 │   ├── events.controller.js
 │   └── sessions.controller.js
 ├── services/
+│   └── events.service.js
 ├── repositories/
+│   └── events.repository.js
 ├── dao/
+│   └── events.dao.js
 ├── models/
 │   ├── User.js
 │   └── Event.js
 ├── middlewares/
+│   └── errorHandler.js
 └── utils/
 ```
+
+### Responsabilidad de cada capa
+
+**Config**
+
+Centraliza la lectura y configuración de las variables de entorno y la conexión con MongoDB.
+
+**Routes**
+
+Define los endpoints disponibles de la API y los conecta con sus respectivos controllers.
+
+**Controllers**
+
+Reciben las solicitudes HTTP, invocan los servicios correspondientes y construyen las respuestas HTTP.
+
+**Services**
+
+Contienen la lógica de negocio de la aplicación.
+
+**Repositories**
+
+Abstraen el acceso a la fuente de datos y se comunican con los DAO.
+
+**DAO**
+
+Gestionan el acceso a los datos. En esta etapa, el DAO de eventos utiliza una estructura en memoria como implementación inicial.
+
+**Models**
+
+Contienen los esquemas de Mongoose utilizados para representar los datos de la aplicación.
+
+**Middlewares**
+
+Contienen funcionalidades que intervienen durante el procesamiento de las solicitudes, incluyendo el manejo centralizado de errores.
+
+**Utils**
+
+Carpeta destinada a funciones auxiliares y reutilizables que serán incorporadas en futuras etapas.
 
 ## Rutas disponibles
 
@@ -112,7 +181,13 @@ Respuesta:
 
 Obtiene la lista de eventos.
 
-En esta primera etapa devuelve una lista vacía:
+En esta etapa los eventos son obtenidos mediante el flujo:
+
+```text
+Controller → Service → Repository → DAO
+```
+
+Respuesta inicial:
 
 ```json
 {
@@ -125,15 +200,41 @@ En esta primera etapa devuelve una lista vacía:
 
 **GET `/api/sessions`**
 
-Endpoint inicial para el recurso de sesiones. La lógica de autenticación será incorporada en futuras entregas.
+Endpoint inicial correspondiente al recurso de sesiones.
+
+La implementación de autenticación y registro de usuarios será incorporada en las siguientes etapas del proyecto.
+
+## Manejo de errores
+
+La aplicación cuenta con un middleware centralizado para el manejo de errores:
+
+```text
+src/middlewares/errorHandler.js
+```
+
+Los errores propagados mediante `next(error)` son gestionados por este middleware, evitando duplicar la lógica de respuesta de errores en los diferentes controllers.
+
+## Base de datos
+
+La aplicación utiliza **MongoDB Atlas** como base de datos y **Mongoose** como ODM.
+
+La conexión se realiza al iniciar el servidor utilizando la variable de entorno `MONGO_URL`.
+
+Los modelos definidos actualmente son:
+
+* `User`
+* `Event`
 
 ## Estado del proyecto
 
 Esta implementación corresponde a la **Pre-entrega 1 de Backend II**.
 
-El objetivo de esta etapa es establecer la arquitectura inicial de una API REST organizada por capas y preparada para futuras funcionalidades como:
+El objetivo de esta etapa es establecer la arquitectura inicial de una API REST organizada por capas, con configuración mediante variables de entorno, conexión a MongoDB y una estructura preparada para incorporar las funcionalidades principales del proyecto.
 
-* Registro de usuarios
+### Funcionalidades previstas para futuras entregas
+
+* Registro seguro de usuarios
+* Hash de contraseñas
 * Login
 * JWT
 * Cookies
@@ -143,4 +244,3 @@ El objetivo de esta etapa es establecer la arquitectura inicial de una API REST 
 * Inscripciones
 * Control de cupos
 * Notificaciones
-
