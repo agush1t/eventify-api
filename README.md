@@ -15,6 +15,7 @@ API REST para una plataforma de gestión de eventos e inscripciones.
 * dotenv
 * Mongoose
 * MongoDB Atlas
+* bcrypt
 
 ## Arquitectura
 
@@ -107,17 +108,22 @@ src/
 │   ├── events.controller.js
 │   └── sessions.controller.js
 ├── services/
-│   └── events.service.js
+│   ├── events.service.js
+│   └── sessions.service.js
 ├── repositories/
-│   └── events.repository.js
+│   ├── events.repository.js
+│   └── users.repository.js
 ├── dao/
-│   └── events.dao.js
+│   ├── events.dao.js
+│   └── users.dao.js
 ├── models/
 │   ├── User.js
 │   └── Event.js
 ├── middlewares/
 │   └── errorHandler.js
 └── utils/
+    ├── generateError.js
+    └── hash.js
 ```
 
 ### Responsabilidad de cada capa
@@ -144,7 +150,7 @@ Abstraen el acceso a la fuente de datos y se comunican con los DAO.
 
 **DAO**
 
-Gestionan el acceso a los datos. En esta etapa, el DAO de eventos utiliza una estructura en memoria como implementación inicial.
+Gestionan el acceso a los datos. El DAO de eventos utiliza una estructura en memoria como implementación inicial, mientras que el DAO de usuarios utiliza Mongoose para persistir los usuarios en MongoDB.
 
 **Models**
 
@@ -156,7 +162,7 @@ Contienen funcionalidades que intervienen durante el procesamiento de las solici
 
 **Utils**
 
-Carpeta destinada a funciones auxiliares y reutilizables que serán incorporadas en futuras etapas.
+Contiene funciones auxiliares y reutilizables, como el hash de contraseñas mediante bcrypt y la generación de errores personalizados.
 
 ## Rutas disponibles
 
@@ -202,7 +208,65 @@ Respuesta inicial:
 
 Endpoint inicial correspondiente al recurso de sesiones.
 
-La implementación de autenticación y registro de usuarios será incorporada en las siguientes etapas del proyecto.
+### Registro de usuarios
+
+**POST `/api/sessions/register`**
+
+Registra un nuevo usuario en el sistema.
+
+#### Request
+
+```json
+{
+  "first_name": "Ana",
+  "last_name": "Pérez",
+  "email": "Ana@Mail.com ",
+  "password": "Secreta123"
+}
+```
+
+El email se normaliza automáticamente eliminando espacios y convirtiéndolo a minúsculas.
+
+La contraseña se almacena utilizando un hash generado con bcrypt.
+
+El campo `role` no se recibe desde el registro público y se establece automáticamente como `user`.
+
+#### Respuesta 201 — Registro exitoso
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "id": "665f2a...",
+    "first_name": "Ana",
+    "last_name": "Pérez",
+    "email": "ana@mail.com",
+    "role": "user"
+  }
+}
+```
+
+La contraseña no se incluye en la respuesta.
+
+#### Respuesta 400 — Campos obligatorios faltantes
+
+```json
+{
+  "status": "error",
+  "message": "Faltan campos obligatorios"
+}
+```
+
+También se utiliza el código `400` para datos inválidos, como un email con formato incorrecto o una contraseña con menos de 6 caracteres.
+
+#### Respuesta 409 — Email duplicado
+
+```json
+{
+  "status": "error",
+  "message": "El email ya está registrado"
+}
+```
 
 ## Manejo de errores
 
@@ -227,14 +291,24 @@ Los modelos definidos actualmente son:
 
 ## Estado del proyecto
 
-Esta implementación corresponde a la **Pre-entrega 1 de Backend II**.
+Esta implementación corresponde a las primeras etapas del proyecto de **Backend II**.
 
-El objetivo de esta etapa es establecer la arquitectura inicial de una API REST organizada por capas, con configuración mediante variables de entorno, conexión a MongoDB y una estructura preparada para incorporar las funcionalidades principales del proyecto.
+Actualmente se encuentran implementadas:
+
+* Arquitectura por capas.
+* Configuración mediante variables de entorno.
+* Conexión con MongoDB Atlas mediante Mongoose.
+* Modelo `User`.
+* Modelo `Event`.
+* Registro seguro de usuarios.
+* Validación de campos obligatorios.
+* Normalización de emails.
+* Control de emails duplicados.
+* Hash de contraseñas mediante bcrypt.
+* Respuesta de registro sin incluir la contraseña.
 
 ### Funcionalidades previstas para futuras entregas
 
-* Registro seguro de usuarios
-* Hash de contraseñas
 * Login
 * JWT
 * Cookies
