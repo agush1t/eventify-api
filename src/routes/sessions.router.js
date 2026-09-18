@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import passport from 'passport';
 
 import {
     getSessions,
@@ -8,14 +9,28 @@ import {
     logout
 } from '../controllers/sessions.controller.js';
 
-import auth from '../middlewares/auth.middleware.js';
-
 const router = Router();
 
 router.get('/', getSessions);
-router.post('/register', register);
-router.post('/login', login);
-router.get('/current', auth, current);
+
+router.post(
+    '/register',
+    passport.authenticate('register', { session: false }),
+    register
+);
+
+router.post(
+    '/login',
+    passport.authenticate('login', { session: false }),
+    login
+);
+
+router.get(
+    '/current',
+    passport.authenticate('current', { session: false }),
+    current
+);
+
 router.post('/logout', logout);
 
 export default router;

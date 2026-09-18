@@ -4,7 +4,9 @@ API REST para una plataforma de gestión de eventos e inscripciones.
 
 ## Temática del proyecto
 
-**Eventify** es una plataforma destinada a la gestión de eventos e inscripciones. La API utiliza una arquitectura por capas y se encuentra preparada para incorporar funcionalidades de autenticación, autorización, gestión de usuarios, eventos, inscripciones y control de cupos.
+**Eventify** es una plataforma destinada a la gestión de eventos e inscripciones. La API utiliza una arquitectura por capas y cuenta con autenticación mediante Passport.js, JWT y cookies.
+
+El proyecto se encuentra preparado para incorporar funcionalidades de autorización, gestión de usuarios, eventos, inscripciones y control de cupos.
 
 ## Tecnologías
 
@@ -18,6 +20,9 @@ API REST para una plataforma de gestión de eventos e inscripciones.
 * bcrypt
 * jsonwebtoken
 * cookie-parser
+* Passport.js
+* passport-local
+* passport-custom
 
 ## Arquitectura
 
@@ -35,6 +40,12 @@ Repository
 DAO
   ↓
 Base de datos / fuente de datos
+```
+
+La autenticación se encuentra centralizada mediante Passport.js y sus estrategias se configuran en:
+
+```text
+src/config/passport.config.js
 ```
 
 Esta estructura permite mantener el código organizado, facilitar su mantenimiento y desacoplar la lógica de negocio del acceso a los datos.
@@ -73,11 +84,11 @@ JWT_SECRET=clave_secreta
 JWT_EXPIRES_IN=1h
 ```
 
-> La variable `MONGO_URL` contiene la cadena de conexión utilizada para conectar la aplicación con MongoDB Atlas.
+La variable `MONGO_URL` contiene la cadena de conexión utilizada para conectar la aplicación con MongoDB Atlas.
 
-> `JWT_SECRET` se utiliza para firmar y verificar los tokens JWT.
+`JWT_SECRET` se utiliza para firmar y verificar los tokens JWT.
 
-> `JWT_EXPIRES_IN` permite configurar el tiempo de expiración de los tokens JWT.
+`JWT_EXPIRES_IN` permite configurar el tiempo de expiración de los tokens JWT.
 
 El archivo `.env` contiene información sensible y se encuentra incluido en `.gitignore`, por lo que no debe ser publicado en el repositorio.
 
@@ -109,7 +120,8 @@ src/
 
 ├── config/
 │   ├── config.js
-│   └── database.js
+│   ├── database.js
+│   └── passport.config.js
 
 ├── routes/
 │   ├── events.router.js
@@ -120,8 +132,7 @@ src/
 │   └── sessions.controller.js
 
 ├── services/
-│   ├── events.service.js
-│   └── sessions.service.js
+│   └── events.service.js
 
 ├── repositories/
 │   ├── events.repository.js
@@ -136,7 +147,6 @@ src/
 │   └── Event.js
 
 ├── middlewares/
-│   ├── auth.middleware.js
 │   └── errorHandler.js
 
 └── utils/
@@ -149,19 +159,23 @@ src/
 
 ### Config
 
-Centraliza la lectura y configuración de las variables de entorno y la conexión con MongoDB.
+Centraliza la configuración de las variables de entorno, la conexión con MongoDB y las estrategias de Passport.
 
 ### Routes
 
-Define los endpoints disponibles de la API y los conecta con sus respectivos controllers.
+Define los endpoints disponibles de la API y aplica las estrategias de autenticación correspondientes.
 
 ### Controllers
 
-Reciben las solicitudes HTTP, invocan los servicios correspondientes y construyen las respuestas HTTP.
+Reciben las solicitudes HTTP y construyen las respuestas HTTP.
+
+En el flujo de autenticación, los controllers utilizan la información colocada en `req.user` por Passport y se encargan de generar el JWT y establecer la cookie de sesión.
 
 ### Services
 
-Contienen la lógica de negocio de la aplicación, incluyendo el registro y autenticación de usuarios.
+Contienen la lógica de negocio de la aplicación.
+
+Actualmente se utiliza un service para la gestión de eventos.
 
 ### Repositories
 
@@ -177,7 +191,9 @@ Contienen los esquemas de Mongoose utilizados para representar los datos de la a
 
 ### Middlewares
 
-Contienen funcionalidades que intervienen durante el procesamiento de las solicitudes, incluyendo el manejo centralizado de errores y la autenticación mediante JWT.
+Contienen funcionalidades que intervienen durante el procesamiento de las solicitudes, incluyendo el manejo centralizado de errores.
+
+La autenticación de sesiones se gestiona mediante estrategias de Passport.js.
 
 ### Utils
 
@@ -229,11 +245,40 @@ Endpoint inicial correspondiente al recurso de sesiones.
 
 ---
 
-## Registro de usuarios
+# Autenticación
+
+La autenticación se encuentra centralizada mediante **Passport.js**.
+
+Las estrategias implementadas se encuentran en:
+
+```text
+src/config/passport.config.js
+```
+
+Actualmente se encuentran implementadas tres estrategias:
+
+* `register`
+* `login`
+* `current`
+
+Las rutas utilizan `passport.authenticate()` para ejecutar las estrategias correspondientes.
+
+## Estrategia `register`
 
 **POST `/api/sessions/register`**
 
-Registra un nuevo usuario en el sistema.
+Registra un nuevo usuario utilizando la estrategia `register` de Passport.
+
+La estrategia se encarga de:
+
+* Validar campos obligatorios.
+* Normalizar el email.
+* Validar el formato del email.
+* Validar la longitud mínima de la contraseña.
+* Verificar si el email ya existe.
+* Generar el hash de la contraseña mediante bcrypt.
+* Crear el usuario en MongoDB.
+* Asignar el rol `user` por defecto.
 
 ### Request
 
@@ -269,7 +314,15 @@ El campo `role` no se recibe desde el registro público y se establece automáti
 
 La contraseña no se incluye en la respuesta.
 
-### Respuesta 400 — Campos obligatorios faltantes
+### Respuesta 400 — Error de validación
+
+Se utiliza `400` para datos inválidos, como:
+
+* Campos obligatorios faltantes.
+* Email con formato incorrecto.
+* Contraseña con menos de 6 caracteres.
+
+Ejemplo:
 
 ```json
 {
@@ -277,8 +330,6 @@ La contraseña no se incluye en la respuesta.
   "message": "Faltan campos obligatorios"
 }
 ```
-
-También se utiliza el código `400` para datos inválidos, como un email con formato incorrecto o una contraseña con menos de 6 caracteres.
 
 ### Respuesta 409 — Email duplicado
 
@@ -291,11 +342,21 @@ También se utiliza el código `400` para datos inválidos, como un email con fo
 
 ---
 
-## Login
+## Estrategia `login`
 
 **POST `/api/sessions/login`**
 
-Autentica un usuario mediante email y contraseña.
+Autentica un usuario mediante la estrategia `login` de Passport.
+
+La estrategia:
+
+1. Valida las credenciales.
+2. Normaliza el email.
+3. Busca el usuario en MongoDB.
+4. Verifica la contraseña utilizando bcrypt.
+5. Coloca el usuario autenticado en `req.user`.
+
+El controller genera posteriormente el JWT y establece la cookie de sesión.
 
 ### Request
 
@@ -338,7 +399,7 @@ La contraseña nunca se incluye dentro del token.
 
 ### Respuesta 401 — Credenciales inválidas
 
-Tanto si el email no existe como si la contraseña es incorrecta, se devuelve el mismo mensaje para evitar revelar información sobre los usuarios registrados.
+Tanto si el email no existe como si la contraseña es incorrecta, se devuelve el mismo mensaje.
 
 ```json
 {
@@ -349,13 +410,13 @@ Tanto si el email no existe como si la contraseña es incorrecta, se devuelve el
 
 ---
 
-## Usuario actual
+## Estrategia `current`
 
 **GET `/api/sessions/current`**
 
-Endpoint protegido mediante el middleware de autenticación `auth`.
+Utiliza la estrategia `current` de Passport.
 
-El middleware obtiene el JWT desde la cookie `currentUser`, verifica su firma y expiración y almacena el payload en `req.user`.
+La estrategia obtiene el JWT desde la cookie `currentUser`, verifica su firma y expiración y coloca el payload validado en `req.user`.
 
 ### Respuesta 200 — Usuario autenticado
 
@@ -374,7 +435,12 @@ La contraseña nunca se devuelve.
 
 ### Respuesta 401 — No autenticado
 
-Se devuelve cuando no existe una cookie válida o cuando el JWT es inválido, manipulado o expirado.
+Se devuelve cuando:
+
+* No existe la cookie.
+* El JWT es inválido.
+* El JWT fue manipulado.
+* El JWT está expirado.
 
 ```json
 {
@@ -390,6 +456,8 @@ Se devuelve cuando no existe una cookie válida o cuando el JWT es inválido, ma
 **POST `/api/sessions/logout`**
 
 Cierra la sesión eliminando la cookie `currentUser`.
+
+No requiere autenticación mediante Passport.
 
 ### Respuesta 200 — Sesión cerrada
 
@@ -413,33 +481,71 @@ Después de cerrar sesión, una solicitud a `/api/sessions/current` devuelve:
 
 ## Flujo de autenticación
 
-El flujo de autenticación implementado es:
+### Registro
+
+```text
+POST /api/sessions/register
+          ↓
+Passport → estrategia "register"
+          ↓
+Validación
+          ↓
+Normalización del email
+          ↓
+Verificación de usuario existente
+          ↓
+bcrypt.hash()
+          ↓
+MongoDB
+          ↓
+req.user
+          ↓
+Controller
+          ↓
+Respuesta 201
+```
+
+### Login
 
 ```text
 POST /api/sessions/login
           ↓
-    Validación de datos
+Passport → estrategia "login"
           ↓
-    Buscar usuario
+Buscar usuario
           ↓
-   bcrypt.compare()
+bcrypt.compare()
           ↓
-   Generar JWT
+req.user
+          ↓
+Controller
+          ↓
+Generar JWT
           ↓
 Cookie httpOnly currentUser
           ↓
-GET /api/sessions/current
-          ↓
-    auth middleware
-          ↓
-     Verificar JWT
-          ↓
-       req.user
-          ↓
-   Datos del usuario
+Respuesta 200
 ```
 
-Para cerrar la sesión:
+### Usuario actual
+
+```text
+GET /api/sessions/current
+          ↓
+Passport → estrategia "current"
+          ↓
+Leer cookie currentUser
+          ↓
+Verificar JWT
+          ↓
+req.user
+          ↓
+Controller
+          ↓
+Datos del usuario
+```
+
+### Logout
 
 ```text
 POST /api/sessions/logout
@@ -448,8 +554,18 @@ Eliminar cookie currentUser
           ↓
 GET /api/sessions/current
           ↓
-        401
+401 No autenticado
 ```
+
+## Preparación para proveedores externos
+
+La configuración de Passport se encuentra centralizada en:
+
+```text
+src/config/passport.config.js
+```
+
+Esta organización permite incorporar futuras estrategias de autenticación mediante proveedores externos, como **Google** o **GitHub**, sin necesidad de modificar la inicialización de Passport en `app.js`.
 
 ## Manejo de errores
 
@@ -459,7 +575,7 @@ La aplicación cuenta con un middleware centralizado para el manejo de errores:
 src/middlewares/errorHandler.js
 ```
 
-Los errores propagados mediante `next(error)` son gestionados por este middleware, evitando duplicar la lógica de respuesta de errores en los diferentes controllers.
+Los errores propagados mediante `next(error)` son gestionados por este middleware, evitando duplicar la lógica de respuesta de errores en los diferentes controllers y estrategias.
 
 ## Base de datos
 
@@ -492,16 +608,20 @@ Actualmente se encuentran implementadas:
 * Generación de tokens JWT.
 * Expiración configurable de JWT.
 * Autenticación mediante cookie `currentUser`.
-* Middleware de autenticación.
+* Passport.js para centralizar la autenticación.
+* Estrategia `register`.
+* Estrategia `login`.
+* Estrategia `current`.
 * Endpoint protegido `/api/sessions/current`.
 * Logout y eliminación de la cookie de sesión.
 * Manejo centralizado de errores.
+* Preparación para futuras estrategias de autenticación externas.
 
 ### Funcionalidades previstas para futuras entregas
 
-* Passport.
 * Roles y autorización.
 * Gestión completa de eventos.
 * Inscripciones.
 * Control de cupos.
 * Notificaciones.
+* Integración con proveedores externos como Google o GitHub.
