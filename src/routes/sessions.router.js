@@ -9,6 +9,8 @@ import {
     logout
 } from '../controllers/sessions.controller.js';
 
+import auth from '../middlewares/auth.middleware.js';
+
 const router = Router();
 
 router.get('/', getSessions);
@@ -25,11 +27,7 @@ router.post(
     login
 );
 
-router.get(
-    '/current',
-    passport.authenticate('current', { session: false }),
-    current
-);
+router.get('/current', auth, current);
 
 router.post('/logout', logout);
 

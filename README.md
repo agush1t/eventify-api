@@ -4,9 +4,17 @@ API REST para una plataforma de gestión de eventos e inscripciones.
 
 ## Temática del proyecto
 
-**Eventify** es una plataforma destinada a la gestión de eventos e inscripciones. La API utiliza una arquitectura por capas y cuenta con autenticación mediante Passport.js, JWT y cookies.
+**Eventify** es una plataforma destinada a la gestión de eventos e inscripciones.
 
-El proyecto se encuentra preparado para incorporar funcionalidades de autorización, gestión de usuarios, eventos, inscripciones y control de cupos.
+La API utiliza una arquitectura por capas y cuenta con:
+
+* Autenticación mediante Passport.js.
+* JWT almacenado en cookies.
+* Autorización basada en roles.
+* Control de permisos mediante middlewares reutilizables.
+* Gestión de usuarios.
+* Gestión de eventos.
+* Control de ownership sobre los eventos.
 
 ## Tecnologías
 
@@ -48,7 +56,16 @@ La autenticación se encuentra centralizada mediante Passport.js y sus estrategi
 src/config/passport.config.js
 ```
 
+Los controles de autenticación y autorización se implementan mediante middlewares reutilizables:
+
+```text
+src/middlewares/auth.middleware.js
+src/middlewares/authorize.middleware.js
+```
+
 Esta estructura permite mantener el código organizado, facilitar su mantenimiento y desacoplar la lógica de negocio del acceso a los datos.
+
+---
 
 ## Instalación
 
@@ -70,6 +87,8 @@ Instalar las dependencias:
 npm install
 ```
 
+---
+
 ## Variables de entorno
 
 Crear un archivo `.env` en la raíz del proyecto tomando como referencia `.env.example`.
@@ -78,9 +97,13 @@ Las variables utilizadas son:
 
 ```env
 PORT=8080
+
 NODE_ENV=development
+
 MONGO_URL=mongodb+srv://<usuario>:<contraseña>@<cluster>/eventify
+
 JWT_SECRET=clave_secreta
+
 JWT_EXPIRES_IN=1h
 ```
 
@@ -91,6 +114,8 @@ La variable `MONGO_URL` contiene la cadena de conexión utilizada para conectar 
 `JWT_EXPIRES_IN` permite configurar el tiempo de expiración de los tokens JWT.
 
 El archivo `.env` contiene información sensible y se encuentra incluido en `.gitignore`, por lo que no debe ser publicado en el repositorio.
+
+---
 
 ## Ejecución
 
@@ -110,100 +135,117 @@ El servidor utiliza el puerto configurado mediante la variable de entorno `PORT`
 
 Al iniciar correctamente, la aplicación establece la conexión con MongoDB y luego inicia el servidor Express.
 
-## Estructura de carpetas
+---
+
+# Estructura de carpetas
 
 ```text
 src/
 
 ├── app.js
 ├── server.js
-
 ├── config/
 │   ├── config.js
 │   ├── database.js
 │   └── passport.config.js
-
 ├── routes/
 │   ├── events.router.js
-│   └── sessions.router.js
-
+│   ├── sessions.router.js
+│   └── users.router.js
 ├── controllers/
 │   ├── events.controller.js
-│   └── sessions.controller.js
-
+│   ├── sessions.controller.js
+│   └── users.controller.js
 ├── services/
-│   └── events.service.js
-
+│   ├── events.service.js
+│   └── users.service.js
 ├── repositories/
 │   ├── events.repository.js
 │   └── users.repository.js
-
 ├── dao/
 │   ├── events.dao.js
 │   └── users.dao.js
-
 ├── models/
 │   ├── User.js
 │   └── Event.js
-
 ├── middlewares/
+│   ├── auth.middleware.js
+│   ├── authorize.middleware.js
 │   └── errorHandler.js
-
 └── utils/
     ├── generateError.js
     ├── hash.js
     └── jwt.js
 ```
 
-## Responsabilidad de cada capa
+---
 
-### Config
+# Responsabilidad de cada capa
+
+## Config
 
 Centraliza la configuración de las variables de entorno, la conexión con MongoDB y las estrategias de Passport.
 
-### Routes
+## Routes
 
-Define los endpoints disponibles de la API y aplica las estrategias de autenticación correspondientes.
+Define los endpoints disponibles de la API y aplica los middlewares de autenticación y autorización correspondientes.
 
-### Controllers
+## Controllers
 
 Reciben las solicitudes HTTP y construyen las respuestas HTTP.
 
-En el flujo de autenticación, los controllers utilizan la información colocada en `req.user` por Passport y se encargan de generar el JWT y establecer la cookie de sesión.
+Los controllers utilizan la información colocada en `req.user` por el middleware de autenticación.
 
-### Services
+## Services
 
 Contienen la lógica de negocio de la aplicación.
 
-Actualmente se utiliza un service para la gestión de eventos.
+Actualmente existen services para la gestión de eventos y usuarios.
 
-### Repositories
+## Repositories
 
 Abstraen el acceso a la fuente de datos y se comunican con los DAO.
 
-### DAO
+## DAO
 
-Gestionan el acceso a los datos. El DAO de eventos utiliza una estructura en memoria como implementación inicial, mientras que el DAO de usuarios utiliza Mongoose para persistir los usuarios en MongoDB.
+Gestionan el acceso a los datos.
 
-### Models
+El DAO de eventos utiliza actualmente una estructura en memoria como implementación inicial, mientras que el DAO de usuarios utiliza Mongoose para persistir los usuarios en MongoDB.
+
+## Models
 
 Contienen los esquemas de Mongoose utilizados para representar los datos de la aplicación.
 
-### Middlewares
+Actualmente se encuentran definidos los modelos:
 
-Contienen funcionalidades que intervienen durante el procesamiento de las solicitudes, incluyendo el manejo centralizado de errores.
+* `User`
+* `Event`
 
-La autenticación de sesiones se gestiona mediante estrategias de Passport.js.
+## Middlewares
 
-### Utils
+Contienen funcionalidades reutilizables que intervienen durante el procesamiento de las solicitudes.
 
-Contiene funciones auxiliares y reutilizables, como el hash de contraseñas mediante bcrypt, la generación de errores personalizados y la generación/verificación de tokens JWT.
+Se utilizan middlewares separados para:
 
-## Rutas disponibles
+* Autenticación.
+* Autorización.
+* Manejo centralizado de errores.
 
-### Health Check
+## Utils
 
-**GET `/api/health`**
+Contiene funciones auxiliares y reutilizables, como:
+
+* Hash de contraseñas mediante bcrypt.
+* Generación de errores personalizados.
+* Generación y verificación de tokens JWT.
+
+---
+
+# Rutas disponibles
+
+## Health Check
+
+### GET `/api/health`
 
 Verifica que el servidor se encuentre activo.
 
@@ -216,19 +258,27 @@ Respuesta:
 }
 ```
 
-### Events
+---
 
-**GET `/api/events`**
+# Events
+
+## GET `/api/events`
 
 Obtiene la lista de eventos.
 
-En esta etapa los eventos son obtenidos mediante el flujo:
+Los eventos son obtenidos mediante el flujo:
 
 ```text
-Controller → Service → Repository → DAO
+Controller
+    ↓
+Service
+    ↓
+Repository
+    ↓
+DAO
 ```
 
-Respuesta inicial:
+Respuesta:
 
 ```json
 {
@@ -237,9 +287,127 @@ Respuesta inicial:
 }
 ```
 
-### Sessions
+---
 
-**GET `/api/sessions`**
+## POST `/api/events`
+
+Crea un nuevo evento.
+
+### Autenticación
+
+Requiere una sesión válida.
+
+### Roles permitidos
+
+* `organizer`
+* `admin`
+
+Los usuarios con rol `user` reciben:
+
+```text
+403 Forbidden
+```
+
+### Request
+
+```json
+{
+  "title": "Evento de ejemplo",
+  "description": "Descripción del evento",
+  "date": "2026-10-10",
+  "location": "Buenos Aires",
+  "capacity": 100
+}
+```
+
+El propietario del evento se asigna automáticamente utilizando el usuario autenticado:
+
+```text
+organizer = req.user.id
+```
+
+El cliente no puede establecer el propietario del evento desde el body.
+
+### Respuesta 201
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "id": "uuid-del-evento",
+    "title": "Evento de ejemplo",
+    "description": "Descripción del evento",
+    "date": "2026-10-10",
+    "location": "Buenos Aires",
+    "capacity": 100,
+    "organizer": "id-del-usuario"
+  }
+}
+```
+
+---
+
+## PUT `/api/events/:id`
+
+Modifica un evento existente.
+
+### Autenticación
+
+Requiere una sesión válida.
+
+### Roles permitidos
+
+* `organizer`
+* `admin`
+
+### Ownership
+
+Los usuarios con rol `organizer` solamente pueden modificar eventos cuyo propietario sea el usuario autenticado.
+
+Un `organizer` que intenta modificar el evento de otro organizer recibe:
+
+```text
+403 Forbidden
+```
+
+Los usuarios con rol `admin` pueden modificar cualquier evento.
+
+### Campos modificables
+
+```json
+{
+  "title": "Nuevo título",
+  "description": "Nueva descripción",
+  "date": "2026-10-10",
+  "location": "Buenos Aires",
+  "capacity": 150
+}
+```
+
+El campo `organizer` no se modifica desde el body.
+
+### Respuesta 200
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "id": "uuid-del-evento",
+    "title": "Nuevo título",
+    "description": "Nueva descripción",
+    "date": "2026-10-10",
+    "location": "Buenos Aires",
+    "capacity": 150,
+    "organizer": "id-del-usuario"
+  }
+}
+```
+
+---
+
+# Sessions
+
+## GET `/api/sessions`
 
 Endpoint inicial correspondiente al recurso de sesiones.
 
@@ -263,9 +431,11 @@ Actualmente se encuentran implementadas tres estrategias:
 
 Las rutas utilizan `passport.authenticate()` para ejecutar las estrategias correspondientes.
 
+---
+
 ## Estrategia `register`
 
-**POST `/api/sessions/register`**
+### POST `/api/sessions/register`
 
 Registra un nuevo usuario utilizando la estrategia `register` de Passport.
 
@@ -286,7 +456,7 @@ La estrategia se encarga de:
 {
   "first_name": "Ana",
   "last_name": "Pérez",
-  "email": "Ana@Mail.com ",
+  "email": "Ana@Mail.com",
   "password": "Secreta123"
 }
 ```
@@ -297,7 +467,9 @@ La contraseña se almacena utilizando un hash generado con bcrypt.
 
 El campo `role` no se recibe desde el registro público y se establece automáticamente como `user`.
 
-### Respuesta 201 — Registro exitoso
+Esto evita que un usuario pueda registrarse directamente como `organizer` o `admin`.
+
+### Respuesta 201
 
 ```json
 {
@@ -314,7 +486,7 @@ El campo `role` no se recibe desde el registro público y se establece automáti
 
 La contraseña no se incluye en la respuesta.
 
-### Respuesta 400 — Error de validación
+### Respuesta 400
 
 Se utiliza `400` para datos inválidos, como:
 
@@ -331,7 +503,9 @@ Ejemplo:
 }
 ```
 
-### Respuesta 409 — Email duplicado
+### Respuesta 409
+
+Cuando el email ya se encuentra registrado:
 
 ```json
 {
@@ -342,9 +516,9 @@ Ejemplo:
 
 ---
 
-## Estrategia `login`
+# Estrategia `login`
 
-**POST `/api/sessions/login`**
+### POST `/api/sessions/login`
 
 Autentica un usuario mediante la estrategia `login` de Passport.
 
@@ -376,7 +550,7 @@ La cookie utiliza:
 * `maxAge: 3600000`
 * `secure: true` únicamente en producción
 
-El JWT contiene únicamente:
+El JWT contiene:
 
 ```json
 {
@@ -388,7 +562,7 @@ El JWT contiene únicamente:
 
 La contraseña nunca se incluye dentro del token.
 
-### Respuesta 200 — Login correcto
+### Respuesta 200
 
 ```json
 {
@@ -397,9 +571,9 @@ La contraseña nunca se incluye dentro del token.
 }
 ```
 
-### Respuesta 401 — Credenciales inválidas
+### Respuesta 401
 
-Tanto si el email no existe como si la contraseña es incorrecta, se devuelve el mismo mensaje.
+Cuando las credenciales son inválidas:
 
 ```json
 {
@@ -410,15 +584,15 @@ Tanto si el email no existe como si la contraseña es incorrecta, se devuelve el
 
 ---
 
-## Estrategia `current`
+# Estrategia `current`
 
-**GET `/api/sessions/current`**
+### GET `/api/sessions/current`
 
 Utiliza la estrategia `current` de Passport.
 
 La estrategia obtiene el JWT desde la cookie `currentUser`, verifica su firma y expiración y coloca el payload validado en `req.user`.
 
-### Respuesta 200 — Usuario autenticado
+### Respuesta 200
 
 ```json
 {
@@ -431,9 +605,7 @@ La estrategia obtiene el JWT desde la cookie `currentUser`, verifica su firma y 
 }
 ```
 
-La contraseña nunca se devuelve.
-
-### Respuesta 401 — No autenticado
+### Respuesta 401
 
 Se devuelve cuando:
 
@@ -451,15 +623,15 @@ Se devuelve cuando:
 
 ---
 
-## Logout
+# Logout
 
-**POST `/api/sessions/logout`**
+### POST `/api/sessions/logout`
 
 Cierra la sesión eliminando la cookie `currentUser`.
 
 No requiere autenticación mediante Passport.
 
-### Respuesta 200 — Sesión cerrada
+### Respuesta 200
 
 ```json
 {
@@ -468,7 +640,13 @@ No requiere autenticación mediante Passport.
 }
 ```
 
-Después de cerrar sesión, una solicitud a `/api/sessions/current` devuelve:
+Después de cerrar sesión, una solicitud a:
+
+```text
+GET /api/sessions/current
+```
+
+devuelve:
 
 ```json
 {
@@ -479,9 +657,321 @@ Después de cerrar sesión, una solicitud a `/api/sessions/current` devuelve:
 
 ---
 
-## Flujo de autenticación
+# Roles y autorización
 
-### Registro
+Eventify implementa autorización basada en roles.
+
+Los roles disponibles son:
+
+* `user`
+* `organizer`
+* `admin`
+
+El modelo `User` utiliza `user` como rol predeterminado.
+
+```text
+user
+organizer
+admin
+```
+
+El registro público siempre asigna el rol:
+
+```text
+user
+```
+
+Los roles privilegiados no pueden ser enviados directamente desde el formulario de registro.
+
+---
+
+## Matriz de permisos
+
+| Acción                                | user | organizer | admin |
+| ------------------------------------- | :--: | :-------: | :---: |
+| Consultar eventos                     |   ✅  |     ✅     |   ✅   |
+| Crear eventos                         |   ❌  |     ✅     |   ✅   |
+| Modificar eventos propios             |   ❌  |     ✅     |   ✅   |
+| Modificar eventos de otros organizers |   ❌  |     ❌     |   ✅   |
+| Consultar todos los usuarios          |   ❌  |     ❌     |   ✅   |
+
+---
+
+# Middleware de autenticación
+
+El middleware:
+
+```text
+src/middlewares/auth.middleware.js
+```
+
+se encarga de verificar que exista una sesión válida.
+
+Utiliza Passport con la estrategia `current`.
+
+Cuando la autenticación es correcta:
+
+```text
+req.user
+```
+
+queda disponible para los siguientes middlewares y controllers.
+
+Cuando no existe una sesión válida, devuelve:
+
+```text
+401 Unauthorized
+```
+
+Respuesta:
+
+```json
+{
+  "status": "error",
+  "message": "No autenticado"
+}
+```
+
+---
+
+# Middleware de autorización
+
+El middleware:
+
+```text
+src/middlewares/authorize.middleware.js
+```
+
+es reutilizable y recibe los roles permitidos.
+
+Ejemplo:
+
+```js
+authorize('organizer', 'admin')
+```
+
+El middleware compara el rol de:
+
+```text
+req.user.role
+```
+
+con los roles permitidos.
+
+Si el usuario está autenticado pero no posee los permisos necesarios, devuelve:
+
+```text
+403 Forbidden
+```
+
+Respuesta:
+
+```json
+{
+  "status": "error",
+  "message": "No tenés permisos para realizar esta acción"
+}
+```
+
+---
+
+# Diferencia entre 401 y 403
+
+La API diferencia correctamente ambos casos.
+
+## 401 Unauthorized
+
+Se utiliza cuando el usuario **no está autenticado**.
+
+Ejemplos:
+
+* No existe la cookie de sesión.
+* El JWT es inválido.
+* El JWT está expirado.
+* No existe una sesión válida.
+
+Ejemplo:
+
+```json
+{
+  "status": "error",
+  "message": "No autenticado"
+}
+```
+
+---
+
+## 403 Forbidden
+
+Se utiliza cuando el usuario **está autenticado pero no tiene permisos suficientes**.
+
+Ejemplos:
+
+* Un `user` intenta crear un evento.
+* Un `organizer` intenta acceder a una ruta exclusiva de `admin`.
+* Un `organizer` intenta modificar un evento perteneciente a otro organizer.
+
+Ejemplo:
+
+```json
+{
+  "status": "error",
+  "message": "No tenés permisos para realizar esta acción"
+}
+```
+
+---
+
+# Users
+
+## GET `/api/users`
+
+Obtiene la lista de usuarios registrados.
+
+### Acceso
+
+Esta ruta requiere:
+
+```text
+Autenticación + rol admin
+```
+
+### Roles permitidos
+
+* `admin`
+
+Los usuarios `user` y `organizer` reciben:
+
+```text
+403 Forbidden
+```
+
+### Respuesta 200
+
+```json
+{
+  "status": "success",
+  "payload": [
+    {
+      "_id": "665f2a...",
+      "first_name": "Ana",
+      "last_name": "Pérez",
+      "email": "ana@mail.com",
+      "role": "user"
+    }
+  ]
+}
+```
+
+La contraseña no se incluye en la respuesta.
+
+---
+
+# Ownership de eventos
+
+Cada evento creado por un `organizer` almacena el identificador del usuario que lo creó:
+
+```text
+organizer: req.user.id
+```
+
+Esto permite validar la propiedad del recurso.
+
+Cuando un `organizer` intenta modificar un evento:
+
+1. Se autentica al usuario.
+2. Se verifica que tenga rol `organizer` o `admin`.
+3. Se busca el evento.
+4. Si el usuario es `organizer`, se compara su ID con el propietario del evento.
+5. Si no coincide, se devuelve `403`.
+6. Si el usuario es `admin`, puede modificar el evento independientemente de su propietario.
+
+---
+
+# Flujo de autorización
+
+```text
+Request
+   ↓
+auth.middleware
+   ↓
+¿JWT válido?
+   ↓
+req.user
+   ↓
+authorize(...)
+   ↓
+¿Rol permitido?
+   ↓
+Controller
+```
+
+Si no existe una sesión válida:
+
+```text
+401 Unauthorized
+```
+
+Si existe sesión pero el rol no tiene permisos:
+
+```text
+403 Forbidden
+```
+
+---
+
+# Flujo de creación de eventos
+
+```text
+POST /api/events
+        ↓
+auth
+        ↓
+authorize('organizer', 'admin')
+        ↓
+createEvent
+        ↓
+req.user.id
+        ↓
+EventsService
+        ↓
+EventsRepository
+        ↓
+EventsDAO
+        ↓
+Evento creado
+```
+
+El propietario se obtiene del usuario autenticado y no del body de la petición.
+
+---
+
+# Flujo de modificación de eventos
+
+```text
+PUT /api/events/:id
+        ↓
+auth
+        ↓
+authorize('organizer', 'admin')
+        ↓
+Buscar evento
+        ↓
+¿Es organizer?
+   ↓              ↓
+  Sí              No
+   ↓              ↓
+¿Es propietario?  Admin
+   ↓              ↓
+  Sí → Modifica   Modifica
+  No → 403
+```
+
+---
+
+# Flujo de autenticación
+
+## Registro
 
 ```text
 POST /api/sessions/register
@@ -498,6 +988,8 @@ bcrypt.hash()
           ↓
 MongoDB
           ↓
+role = user
+          ↓
 req.user
           ↓
 Controller
@@ -505,7 +997,7 @@ Controller
 Respuesta 201
 ```
 
-### Login
+## Login
 
 ```text
 POST /api/sessions/login
@@ -527,10 +1019,12 @@ Cookie httpOnly currentUser
 Respuesta 200
 ```
 
-### Usuario actual
+## Usuario actual
 
 ```text
 GET /api/sessions/current
+          ↓
+auth
           ↓
 Passport → estrategia "current"
           ↓
@@ -545,7 +1039,7 @@ Controller
 Datos del usuario
 ```
 
-### Logout
+## Logout
 
 ```text
 POST /api/sessions/logout
@@ -557,17 +1051,9 @@ GET /api/sessions/current
 401 No autenticado
 ```
 
-## Preparación para proveedores externos
+---
 
-La configuración de Passport se encuentra centralizada en:
-
-```text
-src/config/passport.config.js
-```
-
-Esta organización permite incorporar futuras estrategias de autenticación mediante proveedores externos, como **Google** o **GitHub**, sin necesidad de modificar la inicialización de Passport en `app.js`.
-
-## Manejo de errores
+# Manejo de errores
 
 La aplicación cuenta con un middleware centralizado para el manejo de errores:
 
@@ -575,20 +1061,82 @@ La aplicación cuenta con un middleware centralizado para el manejo de errores:
 src/middlewares/errorHandler.js
 ```
 
-Los errores propagados mediante `next(error)` son gestionados por este middleware, evitando duplicar la lógica de respuesta de errores en los diferentes controllers y estrategias.
+Los errores propagados mediante:
 
-## Base de datos
+```js
+next(error)
+```
+
+son gestionados por este middleware.
+
+Esto evita duplicar la lógica de respuesta de errores en los diferentes controllers y middlewares.
+
+Los errores de autenticación y autorización se diferencian mediante códigos HTTP:
+
+```text
+401 → No autenticado
+403 → Autenticado sin permisos
+```
+
+---
+
+# Base de datos
 
 La aplicación utiliza **MongoDB Atlas** como base de datos y **Mongoose** como ODM.
 
-La conexión se realiza al iniciar el servidor utilizando la variable de entorno `MONGO_URL`.
+La conexión se realiza al iniciar el servidor utilizando la variable de entorno:
+
+```text
+MONGO_URL
+```
 
 Los modelos definidos actualmente son:
 
 * `User`
 * `Event`
 
-## Estado del proyecto
+Los usuarios se almacenan en MongoDB mediante Mongoose.
+
+Los eventos utilizan actualmente un DAO en memoria como implementación inicial.
+
+---
+
+# Preparación para proveedores externos
+
+La configuración de Passport se encuentra centralizada en:
+
+```text
+src/config/passport.config.js
+```
+
+Esta organización permite incorporar futuras estrategias de autenticación mediante proveedores externos, como:
+
+* Google
+* GitHub
+
+sin necesidad de modificar la inicialización principal de Passport en `app.js`.
+
+---
+
+# Pruebas realizadas para PE5
+
+Durante la implementación de roles y autorización se verificaron los siguientes casos:
+
+| Caso                                  | Resultado esperado | Resultado |
+| ------------------------------------- | -----------------: | --------: |
+| `user` crea evento                    |                403 |         ✅ |
+| `organizer` crea evento               |                201 |         ✅ |
+| `organizer` accede a ruta admin       |                403 |         ✅ |
+| `admin` accede a ruta admin           |                200 |         ✅ |
+| Sin sesión en `/api/sessions/current` |                401 |         ✅ |
+| `organizer` modifica evento ajeno     |                403 |         ✅ |
+| `admin` modifica evento ajeno         |                200 |         ✅ |
+
+Estas pruebas permiten verificar la separación entre autenticación, autorización y ownership de recursos.
+
+---
+
+# Estado del proyecto
 
 Actualmente se encuentran implementadas:
 
@@ -603,6 +1151,7 @@ Actualmente se encuentran implementadas:
 * Control de emails duplicados.
 * Hash de contraseñas mediante bcrypt.
 * Respuesta de registro sin incluir la contraseña.
+* Asignación automática del rol `user` durante el registro público.
 * Login de usuarios.
 * Validación de credenciales.
 * Generación de tokens JWT.
@@ -614,14 +1163,26 @@ Actualmente se encuentran implementadas:
 * Estrategia `current`.
 * Endpoint protegido `/api/sessions/current`.
 * Logout y eliminación de la cookie de sesión.
+* Middleware reutilizable de autenticación.
+* Middleware reutilizable de autorización.
+* Roles `user`, `organizer` y `admin`.
+* Protección de rutas según rol.
+* Ruta administrativa `/api/users`.
+* Creación de eventos protegida por roles.
+* Modificación de eventos protegida por roles.
+* Control de ownership de eventos.
+* Diferenciación entre errores `401` y `403`.
 * Manejo centralizado de errores.
 * Preparación para futuras estrategias de autenticación externas.
 
-### Funcionalidades previstas para futuras entregas
+---
 
-* Roles y autorización.
+# Funcionalidades previstas para futuras entregas
+
 * Gestión completa de eventos.
-* Inscripciones.
+* Inscripciones a eventos.
 * Control de cupos.
+* Cancelación de eventos.
 * Notificaciones.
 * Integración con proveedores externos como Google o GitHub.
+* Persistencia completa de eventos mediante MongoDB.

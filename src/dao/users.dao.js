@@ -8,6 +8,10 @@ class UsersDAO {
     async create(userData) {
         return await User.create(userData);
     }
+
+    async findAll() {
+        return await User.find().select('-password');
+    }
 }
 
 export default UsersDAO;

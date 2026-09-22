@@ -24,10 +24,14 @@ const eventSchema = new mongoose.Schema({
         type: Number,
         required: true,
         min: 1
+    },
+    organizer: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     }
 });
 
 const Event = mongoose.model('Event', eventSchema);
 
 export default Event;
-

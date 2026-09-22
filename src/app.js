@@ -6,6 +6,7 @@ import './config/passport.config.js';
 
 import eventsRouter from './routes/events.router.js';
 import sessionsRouter from './routes/sessions.router.js';
+import usersRouter from './routes/users.router.js';
 import errorHandler from './middlewares/errorHandler.js';
 
 const app = express();
@@ -23,6 +24,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/events', eventsRouter);
 app.use('/api/sessions', sessionsRouter);
+app.use('/api/users', usersRouter);
 
 app.use(errorHandler);
 

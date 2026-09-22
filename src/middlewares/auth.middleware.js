@@ -1,26 +1,20 @@
-import { verifyToken } from '../utils/jwt.js';
+import passport from 'passport';
 import generateError from '../utils/generateError.js';
 
 const auth = (req, res, next) => {
-    try {
-        const token = req.cookies.currentUser;
+    passport.authenticate(
+        'current',
+        { session: false },
+        (error, user) => {
+            if (error || !user) {
+                return next(generateError('No autenticado', 401));
+            }
 
-        if (!token) {
-            throw generateError('No autenticado', 401);
+            req.user = user;
+
+            next();
         }
-
-        const payload = verifyToken(token);
-
-        req.user = payload;
-
-        next();
-    } catch (error) {
-        if (error.statusCode === 401) {
-            return next(error);
-        }
-
-        next(generateError('No autenticado', 401));
-    }
+    )(req, res, next);
 };
 
 export default auth;
