@@ -22,7 +22,7 @@ El proyecto se encuentra preparado para incorporar funcionalidades de autorizaci
 * cookie-parser
 * Passport.js
 * passport-local
-* passport-custom
+* passport-jwt
 
 ## Arquitectura
 

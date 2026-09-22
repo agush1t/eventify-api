@@ -1,11 +1,11 @@
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
-import { Strategy as CustomStrategy } from 'passport-custom';
+import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 
 import UsersRepository from '../repositories/users.repository.js';
 import { createHash, isValidPassword } from '../utils/hash.js';
-import { verifyToken } from '../utils/jwt.js';
 import generateError from '../utils/generateError.js';
+import config from './config.js';
 
 const usersRepository = new UsersRepository();
 
@@ -119,27 +119,38 @@ passport.use(
 );
 
 // ================================
+// Extractor del JWT desde la cookie
+// ================================
+
+const cookieExtractor = (req) => {
+    let token = null;
+
+    if (req && req.cookies) {
+        token = req.cookies.currentUser;
+    }
+
+    return token;
+};
+
+// ================================
 // Estrategia current
 // ================================
 
 passport.use(
     'current',
-    new CustomStrategy(async (req, done) => {
-        try {
-            const token = req.cookies?.currentUser;
-
-            if (!token) {
-                throw generateError('No autenticado', 401);
+    new JwtStrategy(
+        {
+            jwtFromRequest: ExtractJwt.fromExtractors([cookieExtractor]),
+            secretOrKey: config.jwtSecret
+        },
+        async (payload, done) => {
+            try {
+                return done(null, payload);
+            } catch (error) {
+                return done(generateError('No autenticado', 401));
             }
-
-            const payload = verifyToken(token);
-
-            return done(null, payload);
-        } catch (error) {
-            return done(generateError('No autenticado', 401));
         }
-    })
+    )
 );
 
 export default passport;
-
