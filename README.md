@@ -14,7 +14,12 @@ La API utiliza una arquitectura por capas y cuenta con:
 * Control de permisos mediante middlewares reutilizables.
 * Gestión de usuarios.
 * Gestión de eventos.
+* Validaciones de negocio.
+* Filtros, paginación y ordenamiento de eventos.
 * Control de ownership sobre los eventos.
+* Gestión de estados de los eventos.
+
+---
 
 ## Tecnologías
 
@@ -32,6 +37,8 @@ La API utiliza una arquitectura por capas y cuenta con:
 * passport-local
 * passport-jwt
 
+---
+
 ## Arquitectura
 
 El proyecto utiliza una arquitectura organizada por capas, separando las responsabilidades de cada componente:
@@ -47,7 +54,7 @@ Repository
   ↓
 DAO
   ↓
-Base de datos / fuente de datos
+Base de datos
 ```
 
 La autenticación se encuentra centralizada mediante Passport.js y sus estrategias se configuran en:
@@ -97,13 +104,9 @@ Las variables utilizadas son:
 
 ```env
 PORT=8080
-
 NODE_ENV=development
-
 MONGO_URL=mongodb+srv://<usuario>:<contraseña>@<cluster>/eventify
-
 JWT_SECRET=clave_secreta
-
 JWT_EXPIRES_IN=1h
 ```
 
@@ -141,7 +144,6 @@ Al iniciar correctamente, la aplicación establece la conexión con MongoDB y lu
 
 ```text
 src/
-
 ├── app.js
 ├── server.js
 ├── config/
@@ -196,11 +198,15 @@ Reciben las solicitudes HTTP y construyen las respuestas HTTP.
 
 Los controllers utilizan la información colocada en `req.user` por el middleware de autenticación.
 
+Los controllers no contienen la lógica de negocio principal.
+
 ## Services
 
 Contienen la lógica de negocio de la aplicación.
 
 Actualmente existen services para la gestión de eventos y usuarios.
+
+En `events.service.js` se encuentran las validaciones relacionadas con fechas, capacidad, precios, estados y ownership.
 
 ## Repositories
 
@@ -210,7 +216,9 @@ Abstraen el acceso a la fuente de datos y se comunican con los DAO.
 
 Gestionan el acceso a los datos.
 
-El DAO de eventos utiliza actualmente una estructura en memoria como implementación inicial, mientras que el DAO de usuarios utiliza Mongoose para persistir los usuarios en MongoDB.
+El DAO de eventos utiliza Mongoose para consultar, crear, actualizar y paginar eventos en MongoDB.
+
+El DAO de usuarios utiliza Mongoose para persistir y consultar usuarios.
 
 ## Models
 
@@ -262,28 +270,152 @@ Respuesta:
 
 # Events
 
-## GET `/api/events`
+La entidad `Event` representa los eventos gestionados por la plataforma.
 
-Obtiene la lista de eventos.
+## Modelo Event
 
-Los eventos son obtenidos mediante el flujo:
+Los eventos contienen los siguientes campos:
+
+| Campo         | Tipo     | Requerido | Descripción          |
+| ------------- | -------- | --------- | -------------------- |
+| `title`       | String   | Sí        | Título del evento    |
+| `description` | String   | Sí        | Descripción          |
+| `category`    | String   | Sí        | Categoría del evento |
+| `date`        | Date     | Sí        | Fecha del evento     |
+| `location`    | String   | Sí        | Ubicación            |
+| `capacity`    | Number   | Sí        | Capacidad máxima     |
+| `price`       | Number   | Sí        | Precio del evento    |
+| `status`      | String   | No        | Estado del evento    |
+| `organizer`   | ObjectId | Sí        | Usuario organizador  |
+
+El campo `organizer` utiliza una referencia a `User`:
 
 ```text
-Controller
-    ↓
-Service
-    ↓
-Repository
-    ↓
-DAO
+organizer → User._id
+```
+
+No se almacena un objeto completo de usuario dentro del evento.
+
+Los estados permitidos son:
+
+```text
+draft
+published
+cancelled
+finished
+```
+
+El estado inicial de un evento nuevo es:
+
+```text
+draft
+```
+
+---
+
+## GET `/api/events`
+
+Obtiene una lista paginada de eventos.
+
+Esta ruta es pública y no requiere autenticación.
+
+### Filtros disponibles
+
+Se pueden utilizar los siguientes parámetros:
+
+* `status`
+* `category`
+* `location`
+* `dateFrom`
+* `dateTo`
+
+Ejemplo:
+
+```text
+GET /api/events?status=published&category=workshop
+```
+
+### Paginación
+
+Se pueden utilizar:
+
+* `page`
+* `limit`
+
+Ejemplo:
+
+```text
+GET /api/events?page=2&limit=5
+```
+
+Los valores predeterminados son:
+
+```text
+page = 1
+limit = 10
+```
+
+### Ordenamiento
+
+Se puede utilizar el parámetro:
+
+```text
+sort
+```
+
+Ejemplo:
+
+```text
+GET /api/events?sort=date
+```
+
+### Ejemplo completo
+
+```text
+GET /api/events?status=published&category=workshop&page=2&limit=5&sort=date
+```
+
+### Respuesta
+
+La respuesta incluye información de paginación:
+
+```json
+{
+  "status": "success",
+  "data": [],
+  "page": 2,
+  "limit": 5,
+  "total": 10,
+  "totalPages": 2
+}
+```
+
+---
+
+## GET `/api/events/:id`
+
+Obtiene un evento específico mediante su identificador.
+
+Ejemplo:
+
+```text
+GET /api/events/507f1f77bcf86cd799439011
+```
+
+Esta ruta es pública.
+
+Si el evento no existe:
+
+```text
+404 Not Found
 ```
 
 Respuesta:
 
 ```json
 {
-  "status": "success",
-  "payload": []
+  "status": "error",
+  "message": "Evento no encontrado"
 }
 ```
 
@@ -312,13 +444,17 @@ Los usuarios con rol `user` reciben:
 
 ```json
 {
-  "title": "Evento de ejemplo",
-  "description": "Descripción del evento",
-  "date": "2026-10-10",
+  "title": "Workshop de desarrollo web",
+  "description": "Evento sobre desarrollo web",
+  "category": "workshop",
+  "date": "2027-10-10T18:00:00.000Z",
   "location": "Buenos Aires",
-  "capacity": 100
+  "capacity": 100,
+  "price": 5000
 }
 ```
+
+El campo `organizer` no debe enviarse desde el body.
 
 El propietario del evento se asigna automáticamente utilizando el usuario autenticado:
 
@@ -326,23 +462,25 @@ El propietario del evento se asigna automáticamente utilizando el usuario auten
 organizer = req.user.id
 ```
 
-El cliente no puede establecer el propietario del evento desde el body.
+### Validaciones
 
-### Respuesta 201
+Al crear un evento:
 
-```json
-{
-  "status": "success",
-  "payload": {
-    "id": "uuid-del-evento",
-    "title": "Evento de ejemplo",
-    "description": "Descripción del evento",
-    "date": "2026-10-10",
-    "location": "Buenos Aires",
-    "capacity": 100,
-    "organizer": "id-del-usuario"
-  }
-}
+* `title` es obligatorio.
+* `description` es obligatorio.
+* `category` es obligatorio.
+* `date` es obligatoria.
+* `location` es obligatorio.
+* `capacity` es obligatoria.
+* `price` es obligatorio.
+* La fecha debe ser futura.
+* La capacidad debe ser mayor a `0`.
+* El precio no puede ser negativo.
+
+El evento se crea inicialmente con:
+
+```text
+status = draft
 ```
 
 ---
@@ -378,30 +516,148 @@ Los usuarios con rol `admin` pueden modificar cualquier evento.
 {
   "title": "Nuevo título",
   "description": "Nueva descripción",
-  "date": "2026-10-10",
+  "category": "workshop",
+  "date": "2027-10-20T18:00:00.000Z",
   "location": "Buenos Aires",
-  "capacity": 150
+  "capacity": 150,
+  "price": 7500
 }
 ```
 
 El campo `organizer` no se modifica desde el body.
 
-### Respuesta 200
+### Regla para eventos cancelados
+
+Los eventos con estado:
+
+```text
+cancelled
+```
+
+no pueden modificarse.
+
+---
+
+## PATCH `/api/events/:id/status`
+
+Permite modificar el estado de un evento.
+
+### Autenticación
+
+Requiere una sesión válida.
+
+### Roles permitidos
+
+* `organizer`
+* `admin`
+
+### Request
 
 ```json
 {
-  "status": "success",
-  "payload": {
-    "id": "uuid-del-evento",
-    "title": "Nuevo título",
-    "description": "Nueva descripción",
-    "date": "2026-10-10",
-    "location": "Buenos Aires",
-    "capacity": 150,
-    "organizer": "id-del-usuario"
-  }
+  "status": "published"
 }
 ```
+
+Los estados permitidos son:
+
+```text
+draft
+published
+cancelled
+finished
+```
+
+No se puede publicar un evento que se encuentre:
+
+```text
+cancelled
+```
+
+o:
+
+```text
+finished
+```
+
+Un evento cancelado no puede volver a otro estado.
+
+La cancelación se realiza modificando el estado:
+
+```text
+status = cancelled
+```
+
+No se realiza eliminación física del evento.
+
+---
+
+# Reglas de negocio de Events
+
+Las principales reglas de negocio se encuentran implementadas en:
+
+```text
+src/services/events.service.js
+```
+
+### Fecha
+
+Al crear un evento, la fecha debe ser futura.
+
+Una fecha pasada genera:
+
+```text
+400 Bad Request
+```
+
+### Capacidad
+
+La capacidad debe ser mayor a cero.
+
+```text
+capacity > 0
+```
+
+Una capacidad igual o menor a cero genera:
+
+```text
+400 Bad Request
+```
+
+### Precio
+
+El precio debe ser igual o mayor a cero.
+
+```text
+price >= 0
+```
+
+Un precio negativo genera:
+
+```text
+400 Bad Request
+```
+
+### Estados
+
+Los estados permitidos son:
+
+```text
+draft
+published
+cancelled
+finished
+```
+
+No se puede publicar un evento cancelado o finalizado.
+
+Los eventos cancelados no pueden modificarse.
+
+### Ownership
+
+El `organizer` solamente puede modificar sus propios eventos.
+
+El `admin` puede modificar eventos pertenecientes a cualquier organizer.
 
 ---
 
@@ -409,7 +665,7 @@ El campo `organizer` no se modifica desde el body.
 
 ## GET `/api/sessions`
 
-Endpoint inicial correspondiente al recurso de sesiones.
+Endpoint correspondiente al recurso de sesiones.
 
 ---
 
@@ -450,98 +706,21 @@ La estrategia se encarga de:
 * Crear el usuario en MongoDB.
 * Asignar el rol `user` por defecto.
 
-### Request
-
-```json
-{
-  "first_name": "Ana",
-  "last_name": "Pérez",
-  "email": "Ana@Mail.com",
-  "password": "Secreta123"
-}
-```
-
-El email se normaliza automáticamente eliminando espacios y convirtiéndolo a minúsculas.
-
-La contraseña se almacena utilizando un hash generado con bcrypt.
-
-El campo `role` no se recibe desde el registro público y se establece automáticamente como `user`.
-
-Esto evita que un usuario pueda registrarse directamente como `organizer` o `admin`.
-
-### Respuesta 201
-
-```json
-{
-  "status": "success",
-  "payload": {
-    "id": "665f2a...",
-    "first_name": "Ana",
-    "last_name": "Pérez",
-    "email": "ana@mail.com",
-    "role": "user"
-  }
-}
-```
-
-La contraseña no se incluye en la respuesta.
-
-### Respuesta 400
-
-Se utiliza `400` para datos inválidos, como:
-
-* Campos obligatorios faltantes.
-* Email con formato incorrecto.
-* Contraseña con menos de 6 caracteres.
-
-Ejemplo:
-
-```json
-{
-  "status": "error",
-  "message": "Faltan campos obligatorios"
-}
-```
-
-### Respuesta 409
-
-Cuando el email ya se encuentra registrado:
-
-```json
-{
-  "status": "error",
-  "message": "El email ya está registrado"
-}
-```
+El campo `role` no se recibe desde el registro público.
 
 ---
 
-# Estrategia `login`
+## Estrategia `login`
 
 ### POST `/api/sessions/login`
 
 Autentica un usuario mediante la estrategia `login` de Passport.
 
-La estrategia:
+Si las credenciales son correctas, se genera un token JWT y se almacena en una cookie llamada:
 
-1. Valida las credenciales.
-2. Normaliza el email.
-3. Busca el usuario en MongoDB.
-4. Verifica la contraseña utilizando bcrypt.
-5. Coloca el usuario autenticado en `req.user`.
-
-El controller genera posteriormente el JWT y establece la cookie de sesión.
-
-### Request
-
-```json
-{
-  "email": "ana@mail.com",
-  "password": "Secreta123"
-}
+```text
+currentUser
 ```
-
-Si las credenciales son correctas, se genera un token JWT y se almacena en una cookie llamada `currentUser`.
 
 La cookie utiliza:
 
@@ -550,110 +729,27 @@ La cookie utiliza:
 * `maxAge: 3600000`
 * `secure: true` únicamente en producción
 
-El JWT contiene:
-
-```json
-{
-  "id": "665f2a...",
-  "email": "ana@mail.com",
-  "role": "user"
-}
-```
-
-La contraseña nunca se incluye dentro del token.
-
-### Respuesta 200
-
-```json
-{
-  "status": "success",
-  "message": "Login correcto"
-}
-```
-
-### Respuesta 401
-
-Cuando las credenciales son inválidas:
-
-```json
-{
-  "status": "error",
-  "message": "Credenciales inválidas"
-}
-```
-
 ---
 
-# Estrategia `current`
+## Estrategia `current`
 
 ### GET `/api/sessions/current`
 
 Utiliza la estrategia `current` de Passport.
 
-La estrategia obtiene el JWT desde la cookie `currentUser`, verifica su firma y expiración y coloca el payload validado en `req.user`.
+Obtiene el JWT desde la cookie `currentUser`, verifica su firma y expiración y coloca el payload validado en:
 
-### Respuesta 200
-
-```json
-{
-  "status": "success",
-  "payload": {
-    "id": "665f2a...",
-    "email": "ana@mail.com",
-    "role": "user"
-  }
-}
-```
-
-### Respuesta 401
-
-Se devuelve cuando:
-
-* No existe la cookie.
-* El JWT es inválido.
-* El JWT fue manipulado.
-* El JWT está expirado.
-
-```json
-{
-  "status": "error",
-  "message": "No autenticado"
-}
+```text
+req.user
 ```
 
 ---
 
-# Logout
+## Logout
 
 ### POST `/api/sessions/logout`
 
 Cierra la sesión eliminando la cookie `currentUser`.
-
-No requiere autenticación mediante Passport.
-
-### Respuesta 200
-
-```json
-{
-  "status": "success",
-  "message": "Sesión cerrada"
-}
-```
-
-Después de cerrar sesión, una solicitud a:
-
-```text
-GET /api/sessions/current
-```
-
-devuelve:
-
-```json
-{
-  "status": "error",
-  "message": "No autenticado"
-}
-```
 
 ---
 
@@ -669,13 +765,7 @@ Los roles disponibles son:
 
 El modelo `User` utiliza `user` como rol predeterminado.
 
-```text
-user
-organizer
-admin
-```
-
-El registro público siempre asigna el rol:
+El registro público siempre asigna:
 
 ```text
 user
@@ -687,13 +777,39 @@ Los roles privilegiados no pueden ser enviados directamente desde el formulario 
 
 ## Matriz de permisos
 
-| Acción                                | user | organizer | admin |
-| ------------------------------------- | :--: | :-------: | :---: |
-| Consultar eventos                     |   ✅  |     ✅     |   ✅   |
-| Crear eventos                         |   ❌  |     ✅     |   ✅   |
-| Modificar eventos propios             |   ❌  |     ✅     |   ✅   |
-| Modificar eventos de otros organizers |   ❌  |     ❌     |   ✅   |
-| Consultar todos los usuarios          |   ❌  |     ❌     |   ✅   |
+| Acción                                        | user | organizer | admin |
+| --------------------------------------------- | :--: | :-------: | :---: |
+| Consultar eventos                             |   ✅  |     ✅     |   ✅   |
+| Crear eventos                                 |   ❌  |     ✅     |   ✅   |
+| Modificar eventos propios                     |   ❌  |     ✅     |   ✅   |
+| Modificar eventos de otros organizers         |   ❌  |     ❌     |   ✅   |
+| Cambiar estado de eventos propios             |   ❌  |     ✅     |   ✅   |
+| Cambiar estado de eventos de otros organizers |   ❌  |     ❌     |   ✅   |
+| Consultar todos los usuarios                  |   ❌  |     ❌     |   ✅   |
+
+---
+
+# Users
+
+## GET `/api/users`
+
+Obtiene la lista de usuarios registrados.
+
+### Acceso
+
+Esta ruta requiere:
+
+```text
+Autenticación + rol admin
+```
+
+Los usuarios `user` y `organizer` reciben:
+
+```text
+403 Forbidden
+```
+
+La contraseña no se incluye en la respuesta.
 
 ---
 
@@ -723,15 +839,6 @@ Cuando no existe una sesión válida, devuelve:
 401 Unauthorized
 ```
 
-Respuesta:
-
-```json
-{
-  "status": "error",
-  "message": "No autenticado"
-}
-```
-
 ---
 
 # Middleware de autorización
@@ -750,38 +857,19 @@ Ejemplo:
 authorize('organizer', 'admin')
 ```
 
-El middleware compara el rol de:
-
-```text
-req.user.role
-```
-
-con los roles permitidos.
-
 Si el usuario está autenticado pero no posee los permisos necesarios, devuelve:
 
 ```text
 403 Forbidden
 ```
 
-Respuesta:
-
-```json
-{
-  "status": "error",
-  "message": "No tenés permisos para realizar esta acción"
-}
-```
-
 ---
 
 # Diferencia entre 401 y 403
 
-La API diferencia correctamente ambos casos.
-
 ## 401 Unauthorized
 
-Se utiliza cuando el usuario **no está autenticado**.
+Se utiliza cuando el usuario no está autenticado.
 
 Ejemplos:
 
@@ -790,20 +878,9 @@ Ejemplos:
 * El JWT está expirado.
 * No existe una sesión válida.
 
-Ejemplo:
-
-```json
-{
-  "status": "error",
-  "message": "No autenticado"
-}
-```
-
----
-
 ## 403 Forbidden
 
-Se utiliza cuando el usuario **está autenticado pero no tiene permisos suficientes**.
+Se utiliza cuando el usuario está autenticado pero no tiene permisos suficientes.
 
 Ejemplos:
 
@@ -811,65 +888,11 @@ Ejemplos:
 * Un `organizer` intenta acceder a una ruta exclusiva de `admin`.
 * Un `organizer` intenta modificar un evento perteneciente a otro organizer.
 
-Ejemplo:
-
-```json
-{
-  "status": "error",
-  "message": "No tenés permisos para realizar esta acción"
-}
-```
-
----
-
-# Users
-
-## GET `/api/users`
-
-Obtiene la lista de usuarios registrados.
-
-### Acceso
-
-Esta ruta requiere:
-
-```text
-Autenticación + rol admin
-```
-
-### Roles permitidos
-
-* `admin`
-
-Los usuarios `user` y `organizer` reciben:
-
-```text
-403 Forbidden
-```
-
-### Respuesta 200
-
-```json
-{
-  "status": "success",
-  "payload": [
-    {
-      "_id": "665f2a...",
-      "first_name": "Ana",
-      "last_name": "Pérez",
-      "email": "ana@mail.com",
-      "role": "user"
-    }
-  ]
-}
-```
-
-La contraseña no se incluye en la respuesta.
-
 ---
 
 # Ownership de eventos
 
-Cada evento creado por un `organizer` almacena el identificador del usuario que lo creó:
+Cada evento almacena el identificador del usuario que lo creó:
 
 ```text
 organizer: req.user.id
@@ -885,38 +908,6 @@ Cuando un `organizer` intenta modificar un evento:
 4. Si el usuario es `organizer`, se compara su ID con el propietario del evento.
 5. Si no coincide, se devuelve `403`.
 6. Si el usuario es `admin`, puede modificar el evento independientemente de su propietario.
-
----
-
-# Flujo de autorización
-
-```text
-Request
-   ↓
-auth.middleware
-   ↓
-¿JWT válido?
-   ↓
-req.user
-   ↓
-authorize(...)
-   ↓
-¿Rol permitido?
-   ↓
-Controller
-```
-
-Si no existe una sesión válida:
-
-```text
-401 Unauthorized
-```
-
-Si existe sesión pero el rol no tiene permisos:
-
-```text
-403 Forbidden
-```
 
 ---
 
@@ -939,6 +930,8 @@ EventsRepository
         ↓
 EventsDAO
         ↓
+MongoDB
+        ↓
 Evento creado
 ```
 
@@ -955,16 +948,25 @@ auth
         ↓
 authorize('organizer', 'admin')
         ↓
+EventsService
+        ↓
 Buscar evento
         ↓
-¿Es organizer?
+¿Evento cancelado?
    ↓              ↓
-  Sí              No
-   ↓              ↓
-¿Es propietario?  Admin
-   ↓              ↓
-  Sí → Modifica   Modifica
-  No → 403
+ Sí              No
+ ↓                ↓
+Error          Verificar ownership
+                  ↓
+          ┌───────┴───────┐
+          ↓               ↓
+      Organizer         Admin
+          ↓               ↓
+     ¿Es dueño?       Modifica
+       ↓    ↓
+      Sí    No
+      ↓      ↓
+   Modifica 403
 ```
 
 ---
@@ -1055,7 +1057,7 @@ GET /api/sessions/current
 
 # Manejo de errores
 
-La aplicación cuenta con un middleware centralizado para el manejo de errores:
+La aplicación cuenta con un middleware centralizado:
 
 ```text
 src/middlewares/errorHandler.js
@@ -1084,7 +1086,7 @@ Los errores de autenticación y autorización se diferencian mediante códigos H
 
 La aplicación utiliza **MongoDB Atlas** como base de datos y **Mongoose** como ODM.
 
-La conexión se realiza al iniciar el servidor utilizando la variable de entorno:
+La conexión se realiza al iniciar el servidor utilizando:
 
 ```text
 MONGO_URL
@@ -1095,44 +1097,42 @@ Los modelos definidos actualmente son:
 * `User`
 * `Event`
 
-Los usuarios se almacenan en MongoDB mediante Mongoose.
-
-Los eventos utilizan actualmente un DAO en memoria como implementación inicial.
+Los usuarios y eventos se almacenan mediante Mongoose.
 
 ---
 
-# Preparación para proveedores externos
+# Pruebas realizadas
 
-La configuración de Passport se encuentra centralizada en:
+Durante la implementación de PE5 y PE6 se verificaron diferentes casos funcionales.
 
-```text
-src/config/passport.config.js
-```
-
-Esta organización permite incorporar futuras estrategias de autenticación mediante proveedores externos, como:
-
-* Google
-* GitHub
-
-sin necesidad de modificar la inicialización principal de Passport en `app.js`.
-
----
-
-# Pruebas realizadas para PE5
-
-Durante la implementación de roles y autorización se verificaron los siguientes casos:
+## PE5
 
 | Caso                                  | Resultado esperado | Resultado |
-| ------------------------------------- | -----------------: | --------: |
-| `user` crea evento                    |                403 |         ✅ |
-| `organizer` crea evento               |                201 |         ✅ |
-| `organizer` accede a ruta admin       |                403 |         ✅ |
-| `admin` accede a ruta admin           |                200 |         ✅ |
-| Sin sesión en `/api/sessions/current` |                401 |         ✅ |
-| `organizer` modifica evento ajeno     |                403 |         ✅ |
-| `admin` modifica evento ajeno         |                200 |         ✅ |
+| ------------------------------------- | -----------------: | :-------: |
+| `user` crea evento                    |                403 |     ✅     |
+| `organizer` crea evento               |                201 |     ✅     |
+| `organizer` accede a ruta admin       |                403 |     ✅     |
+| `admin` accede a ruta admin           |                200 |     ✅     |
+| Sin sesión en `/api/sessions/current` |                401 |     ✅     |
+| `organizer` modifica evento ajeno     |                403 |     ✅     |
+| `admin` modifica evento ajeno         |                200 |     ✅     |
 
-Estas pruebas permiten verificar la separación entre autenticación, autorización y ownership de recursos.
+## PE6
+
+| Caso                                    | Resultado esperado | Resultado |
+| --------------------------------------- | -----------------: | :-------: |
+| Crear evento como organizer             |                201 |     ✅     |
+| Crear evento con fecha pasada           |                400 |     ✅     |
+| Crear evento con capacidad 0            |                400 |     ✅     |
+| Organizer modifica su propio evento     |                200 |     ✅     |
+| Organizer modifica evento ajeno         |                403 |     ✅     |
+| Admin modifica evento de otro organizer |                200 |     ✅     |
+| Cancelar evento                         |                200 |     ✅     |
+| Modificar evento cancelado              |                400 |     ✅     |
+| Cambiar estado de evento cancelado      |                400 |     ✅     |
+| Filtrar por `status` y `category`       |                200 |     ✅     |
+| Paginación                              |                200 |     ✅     |
+| Evento inexistente                      |                404 |     ✅     |
 
 ---
 
@@ -1150,17 +1150,12 @@ Actualmente se encuentran implementadas:
 * Normalización de emails.
 * Control de emails duplicados.
 * Hash de contraseñas mediante bcrypt.
-* Respuesta de registro sin incluir la contraseña.
-* Asignación automática del rol `user` durante el registro público.
 * Login de usuarios.
-* Validación de credenciales.
 * Generación de tokens JWT.
 * Expiración configurable de JWT.
 * Autenticación mediante cookie `currentUser`.
 * Passport.js para centralizar la autenticación.
-* Estrategia `register`.
-* Estrategia `login`.
-* Estrategia `current`.
+* Estrategias `register`, `login` y `current`.
 * Endpoint protegido `/api/sessions/current`.
 * Logout y eliminación de la cookie de sesión.
 * Middleware reutilizable de autenticación.
@@ -1168,21 +1163,29 @@ Actualmente se encuentran implementadas:
 * Roles `user`, `organizer` y `admin`.
 * Protección de rutas según rol.
 * Ruta administrativa `/api/users`.
-* Creación de eventos protegida por roles.
-* Modificación de eventos protegida por roles.
-* Control de ownership de eventos.
-* Diferenciación entre errores `401` y `403`.
+* Modelo completo de eventos.
+* Creación de eventos.
+* Consulta individual de eventos.
+* Actualización de eventos.
+* Actualización de estados.
+* Control de ownership.
+* Validaciones de negocio.
+* Filtros de eventos.
+* Paginación.
+* Ordenamiento.
+* Control de eventos cancelados.
+* Diferenciación entre errores `401`, `403` y `404`.
 * Manejo centralizado de errores.
-* Preparación para futuras estrategias de autenticación externas.
 
 ---
 
 # Funcionalidades previstas para futuras entregas
 
-* Gestión completa de eventos.
-* Inscripciones a eventos.
-* Control de cupos.
-* Cancelación de eventos.
+* Sistema de inscripciones a eventos.
+* Estados de inscripción.
+* Control de cupos asociado a inscripciones.
+* Lista de espera.
+* Cancelación de inscripciones.
 * Notificaciones.
 * Integración con proveedores externos como Google o GitHub.
-* Persistencia completa de eventos mediante MongoDB.
+* Funcionalidades adicionales de gestión de eventos.
