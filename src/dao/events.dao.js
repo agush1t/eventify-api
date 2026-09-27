@@ -1,40 +1,45 @@
-import crypto from 'crypto';
-
-const events = [];
+import Event from '../models/Event.js';
 
 class EventsDAO {
-    async getAll() {
-        return events;
+    async getAll(filters = {}, options = {}) {
+        const {
+            page = 1,
+            limit = 10,
+            sort = 'date'
+        } = options;
+
+        const skip = (page - 1) * limit;
+
+        const events = await Event.find(filters)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit);
+
+        const total = await Event.countDocuments(filters);
+
+        return {
+            events,
+            total
+        };
     }
 
     async getById(id) {
-        return events.find((event) => event.id === id);
+        return await Event.findById(id);
     }
 
-    async create(event) {
-        const newEvent = {
-            id: crypto.randomUUID(),
-            ...event
-        };
-
-        events.push(newEvent);
-
-        return newEvent;
+    async create(eventData) {
+        return await Event.create(eventData);
     }
 
     async update(id, eventData) {
-        const eventIndex = events.findIndex((event) => event.id === id);
-
-        if (eventIndex === -1) {
-            return null;
-        }
-
-        events[eventIndex] = {
-            ...events[eventIndex],
-            ...eventData
-        };
-
-        return events[eventIndex];
+        return await Event.findByIdAndUpdate(
+            id,
+            eventData,
+            {
+                new: true,
+                runValidators: true
+            }
+        );
     }
 }
 

@@ -3,16 +3,16 @@ import EventsDAO from '../dao/events.dao.js';
 const eventsDAO = new EventsDAO();
 
 class EventsRepository {
-    async getAll() {
-        return await eventsDAO.getAll();
+    async getAll(filters = {}, options = {}) {
+        return await eventsDAO.getAll(filters, options);
     }
 
     async getById(id) {
         return await eventsDAO.getById(id);
     }
 
-    async create(event) {
-        return await eventsDAO.create(event);
+    async create(eventData) {
+        return await eventsDAO.create(eventData);
     }
 
     async update(id, eventData) {

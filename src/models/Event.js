@@ -11,6 +11,11 @@ const eventSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
+    category: {
+        type: String,
+        required: true,
+        trim: true
+    },
     date: {
         type: Date,
         required: true
@@ -24,6 +29,16 @@ const eventSchema = new mongoose.Schema({
         type: Number,
         required: true,
         min: 1
+    },
+    price: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    status: {
+        type: String,
+        enum: ['draft', 'published', 'cancelled', 'finished'],
+        default: 'draft'
     },
     organizer: {
         type: mongoose.Schema.Types.ObjectId,

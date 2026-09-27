@@ -5,11 +5,108 @@ const eventsService = new EventsService();
 
 export const getEvents = async (req, res, next) => {
     try {
-        const events = await eventsService.getAllEvents();
+        const {
+            status,
+            category,
+            location,
+            dateFrom,
+            dateTo,
+            page = 1,
+            limit = 10,
+            sort = 'date'
+        } = req.query;
+
+        const filters = {};
+
+        if (status) {
+            filters.status = status;
+        }
+
+        if (category) {
+            filters.category = category;
+        }
+
+        if (location) {
+            filters.location = location;
+        }
+
+        if (dateFrom || dateTo) {
+            filters.date = {};
+
+            if (dateFrom) {
+                filters.date.$gte = new Date(dateFrom);
+            }
+
+            if (dateTo) {
+                filters.date.$lte = new Date(dateTo);
+            }
+        }
+
+        const pageNumber = Number(page);
+        const limitNumber = Number(limit);
+
+        if (
+            !Number.isInteger(pageNumber) ||
+            pageNumber < 1
+        ) {
+            throw generateError(
+                'El parámetro page debe ser un número entero mayor a 0',
+                400
+            );
+        }
+
+        if (
+            !Number.isInteger(limitNumber) ||
+            limitNumber < 1
+        ) {
+            throw generateError(
+                'El parámetro limit debe ser un número entero mayor a 0',
+                400
+            );
+        }
+
+        const result = await eventsService.getAllEvents(
+            filters,
+            {
+                page: pageNumber,
+                limit: limitNumber,
+                sort
+            }
+        );
+
+        const totalPages = Math.ceil(
+            result.total / limitNumber
+        );
 
         res.status(200).json({
             status: 'success',
-            payload: events
+            data: result.events,
+            page: pageNumber,
+            limit: limitNumber,
+            total: result.total,
+            totalPages
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getEventById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const event = await eventsService.getEventById(id);
+
+        if (!event) {
+            throw generateError(
+                'Evento no encontrado',
+                404
+            );
+        }
+
+        res.status(200).json({
+            status: 'success',
+            payload: event
         });
     } catch (error) {
         next(error);
@@ -21,30 +118,21 @@ export const createEvent = async (req, res, next) => {
         const {
             title,
             description,
+            category,
             date,
             location,
-            capacity
+            capacity,
+            price
         } = req.body;
-
-        if (
-            !title ||
-            !description ||
-            !date ||
-            !location ||
-            !capacity
-        ) {
-            throw generateError(
-                'Todos los campos del evento son obligatorios',
-                400
-            );
-        }
 
         const event = await eventsService.createEvent({
             title,
             description,
+            category,
             date,
             location,
             capacity,
+            price,
             organizer: req.user.id
         });
 
@@ -64,34 +152,54 @@ export const updateEvent = async (req, res, next) => {
         const {
             title,
             description,
+            category,
             date,
             location,
-            capacity
+            capacity,
+            price
         } = req.body;
 
-        const event = await eventsService.getEventById(id);
+        const updatedEvent = await eventsService.updateEvent(
+            id,
+            {
+                title,
+                description,
+                category,
+                date,
+                location,
+                capacity,
+                price
+            },
+            req.user
+        );
 
-        if (!event) {
-            throw generateError('Evento no encontrado', 404);
-        }
+        res.status(200).json({
+            status: 'success',
+            payload: updatedEvent
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 
-        if (
-            req.user.role === 'organizer' &&
-            event.organizer !== req.user.id
-        ) {
+export const updateEventStatus = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!status) {
             throw generateError(
-                'No tenés permisos para modificar este evento',
-                403
+                'El estado es obligatorio',
+                400
             );
         }
 
-        const updatedEvent = await eventsService.updateEvent(id, {
-            title,
-            description,
-            date,
-            location,
-            capacity
-        });
+        const updatedEvent =
+            await eventsService.updateEventStatus(
+                id,
+                status,
+                req.user
+            );
 
         res.status(200).json({
             status: 'success',
