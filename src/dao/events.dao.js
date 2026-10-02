@@ -1,5 +1,11 @@
 import Event from '../models/Event.js';
 
+const ALLOWED_SORT_FIELDS = [
+    'date',
+    'title',
+    'price'
+];
+
 class EventsDAO {
     async getAll(filters = {}, options = {}) {
         const {
@@ -8,10 +14,25 @@ class EventsDAO {
             sort = 'date'
         } = options;
 
+        const sortField = sort.startsWith('-')
+            ? sort.substring(1)
+            : sort;
+
+        const normalizedSort =
+            sort.startsWith('-')
+                ? `-${sortField}`
+                : sortField;
+
+        if (!ALLOWED_SORT_FIELDS.includes(sortField)) {
+            throw new Error(
+                `Campo de ordenamiento no permitido: ${sortField}`
+            );
+        }
+
         const skip = (page - 1) * limit;
 
         const events = await Event.find(filters)
-            .sort(sort)
+            .sort(normalizedSort)
             .skip(skip)
             .limit(limit);
 

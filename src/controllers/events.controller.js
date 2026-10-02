@@ -9,6 +9,7 @@ export const getEvents = async (req, res, next) => {
             status,
             category,
             location,
+            organizer,
             dateFrom,
             dateTo,
             page = 1,
@@ -28,6 +29,9 @@ export const getEvents = async (req, res, next) => {
 
         if (location) {
             filters.location = location;
+        }
+        if (organizer) {
+            filters.organizer = organizer;
         }
 
         if (dateFrom || dateTo) {
