@@ -1,7 +1,11 @@
 import TicketsRepository from '../repositories/tickets.repository.js';
 import EventsRepository from '../repositories/events.repository.js';
 import generateError from '../utils/generateError.js';
-import { sendTicketConfirmationEmail } from '../utils/mailer.js';
+import {
+    sendTicketConfirmationEmail,
+    sendTicketCancellationEmail
+} from '../utils/mailer.js';
+
 
 const ticketsRepository = new TicketsRepository();
 const eventsRepository = new EventsRepository();
@@ -20,6 +24,13 @@ class TicketsService {
         if (event.status !== 'published') {
             throw generateError(
                 'El evento no está disponible para inscripciones',
+                400
+            );
+        }
+
+        if (new Date(event.date) <= new Date()) {
+            throw generateError(
+                'No se puede inscribir a un evento que ya comenzó',
                 400
             );
         }
@@ -148,13 +159,25 @@ class TicketsService {
             );
         }
 
-        return await ticketsRepository.update(
+        const cancelledTicket = await ticketsRepository.update(
             ticketId,
             {
                 status: 'cancelled',
                 cancelledAt: new Date()
             }
         );
+
+        const event = await eventsRepository.getById(
+            ticket.event
+        );
+
+        await sendTicketCancellationEmail({
+            to: user.email,
+            event,
+            ticket: cancelledTicket
+        });
+
+        return cancelledTicket;
     }
 }
 
