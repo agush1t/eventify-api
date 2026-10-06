@@ -1,6 +1,7 @@
 import TicketsRepository from '../repositories/tickets.repository.js';
 import EventsRepository from '../repositories/events.repository.js';
 import generateError from '../utils/generateError.js';
+import TicketDTO from '../dtos/ticket.dto.js';
 import {
     sendTicketConfirmationEmail,
     sendTicketCancellationEmail
@@ -95,11 +96,13 @@ class TicketsService {
             ticket
         });
 
-        return ticket;
+        return new TicketDTO(ticket);
     }
 
     async getMyTickets(userId) {
-        return await ticketsRepository.getByUser(userId);
+        const tickets = await ticketsRepository.getByUser(userId);
+
+        return tickets.map(ticket => new TicketDTO(ticket));
     }
 
     async getEventTickets(eventId, user) {
@@ -125,7 +128,9 @@ class TicketsService {
             );
         }
 
-        return await ticketsRepository.getByEvent(eventId);
+        const tickets = await ticketsRepository.getByEvent(eventId);
+
+        return tickets.map(ticket => new TicketDTO(ticket));
     }
 
     async cancelTicket(ticketId, user) {
@@ -177,7 +182,7 @@ class TicketsService {
             ticket: cancelledTicket
         });
 
-        return cancelledTicket;
+        return new TicketDTO(cancelledTicket);
     }
 }
 

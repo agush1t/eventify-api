@@ -1,4 +1,4 @@
-import EventsRepository from '../repositories/events.repository.js';
+﻿import EventsRepository from '../repositories/events.repository.js';
 import generateError from '../utils/generateError.js';
 
 const eventsRepository = new EventsRepository();
@@ -12,11 +12,83 @@ const ALLOWED_STATUSES = [
 
 class EventsService {
     async getAllEvents(filters = {}, options = {}) {
-        return await eventsRepository.getAll(filters, options);
+        const {
+            page = 1,
+            limit = 10,
+            sort = 'date'
+        } = options;
+
+        const pageNumber = Number(page);
+        const limitNumber = Number(limit);
+
+        if (
+            !Number.isInteger(pageNumber) ||
+            pageNumber < 1
+        ) {
+            throw generateError(
+                'El parÃ¡metro page debe ser un nÃºmero entero mayor a 0',
+                400
+            );
+        }
+
+        if (
+            !Number.isInteger(limitNumber) ||
+            limitNumber < 1
+        ) {
+            throw generateError(
+                'El parÃ¡metro limit debe ser un nÃºmero entero mayor a 0',
+                400
+            );
+        }
+
+        const sortField = sort.startsWith('-')
+            ? sort.substring(1)
+            : sort;
+
+        const allowedSortFields = [
+            'date',
+            'title',
+            'price'
+        ];
+
+        if (!allowedSortFields.includes(sortField)) {
+            throw generateError(
+                'Campo de ordenamiento no permitido: ' + sortField,
+                400
+            );
+        }
+
+        const result = await eventsRepository.getAll(
+            filters,
+            {
+                page: pageNumber,
+                limit: limitNumber,
+                sort
+            }
+        );
+
+        return {
+            events: result.events,
+            total: result.total,
+            page: pageNumber,
+            limit: limitNumber,
+            totalPages: Math.ceil(
+                result.total / limitNumber
+            )
+        };
     }
 
-    async getEventById(id) {
-        return await eventsRepository.getById(id);
+        async getEventById(id) {
+        const event = await eventsRepository.getById(id);
+
+        if (!event) {
+            throw generateError(
+                'Evento no encontrado',
+                404
+            );
+        }
+
+        return event;
     }
 
     async createEvent(eventData) {
@@ -50,7 +122,7 @@ class EventsService {
 
         if (Number.isNaN(eventDate.getTime())) {
             throw generateError(
-                'La fecha del evento no es válida',
+                'La fecha del evento no es vÃ¡lida',
                 400
             );
         }
@@ -108,7 +180,7 @@ class EventsService {
 
         if (user.role !== 'admin' && !isOwner) {
             throw generateError(
-                'No tenés permisos para modificar este evento',
+                'No tenÃ©s permisos para modificar este evento',
                 403
             );
         }
@@ -118,7 +190,7 @@ class EventsService {
 
             if (Number.isNaN(eventDate.getTime())) {
                 throw generateError(
-                    'La fecha del evento no es válida',
+                    'La fecha del evento no es vÃ¡lida',
                     400
                 );
             }
@@ -157,9 +229,16 @@ class EventsService {
     }
 
     async updateEventStatus(id, status, user) {
+        if (!status) {
+            throw generateError(
+                'El estado es obligatorio',
+                400
+            );
+        }
+
         if (!ALLOWED_STATUSES.includes(status)) {
             throw generateError(
-                'Estado de evento no válido',
+                'Estado de evento no vÃ¡lido',
                 400
             );
         }
@@ -175,7 +254,7 @@ class EventsService {
 
         if (user.role !== 'admin' && !isOwner) {
             throw generateError(
-                'No tenés permisos para modificar este evento',
+                'No tenÃ©s permisos para modificar este evento',
                 403
             );
         }

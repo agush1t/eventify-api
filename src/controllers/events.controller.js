@@ -1,5 +1,5 @@
-import EventsService from '../services/events.service.js';
-import generateError from '../utils/generateError.js';
+﻿import EventsService from '../services/events.service.js';
+import EventDTO from '../dtos/event.dto.js';
 
 const eventsService = new EventsService();
 
@@ -30,6 +30,7 @@ export const getEvents = async (req, res, next) => {
         if (location) {
             filters.location = location;
         }
+
         if (organizer) {
             filters.organizer = organizer;
         }
@@ -46,71 +47,38 @@ export const getEvents = async (req, res, next) => {
             }
         }
 
-        const pageNumber = Number(page);
-        const limitNumber = Number(limit);
-
-        if (
-            !Number.isInteger(pageNumber) ||
-            pageNumber < 1
-        ) {
-            throw generateError(
-                'El parámetro page debe ser un número entero mayor a 0',
-                400
-            );
-        }
-
-        if (
-            !Number.isInteger(limitNumber) ||
-            limitNumber < 1
-        ) {
-            throw generateError(
-                'El parámetro limit debe ser un número entero mayor a 0',
-                400
-            );
-        }
-
         const result = await eventsService.getAllEvents(
             filters,
             {
-                page: pageNumber,
-                limit: limitNumber,
+                page,
+                limit,
                 sort
             }
         );
 
-        const totalPages = Math.ceil(
-            result.total / limitNumber
-        );
-
         res.status(200).json({
             status: 'success',
-            data: result.events,
-            page: pageNumber,
-            limit: limitNumber,
+            data: result.events.map(
+                event => new EventDTO(event)
+            ),
+            page: result.page,
+            limit: result.limit,
             total: result.total,
-            totalPages
+            totalPages: result.totalPages
         });
     } catch (error) {
         next(error);
     }
 };
-
 export const getEventById = async (req, res, next) => {
     try {
         const { id } = req.params;
 
         const event = await eventsService.getEventById(id);
 
-        if (!event) {
-            throw generateError(
-                'Evento no encontrado',
-                404
-            );
-        }
-
         res.status(200).json({
             status: 'success',
-            payload: event
+            payload: new EventDTO(event)
         });
     } catch (error) {
         next(error);
@@ -142,7 +110,7 @@ export const createEvent = async (req, res, next) => {
 
         res.status(201).json({
             status: 'success',
-            payload: event
+            payload: new EventDTO(event)
         });
     } catch (error) {
         next(error);
@@ -179,7 +147,7 @@ export const updateEvent = async (req, res, next) => {
 
         res.status(200).json({
             status: 'success',
-            payload: updatedEvent
+            payload: new EventDTO(updatedEvent)
         });
     } catch (error) {
         next(error);
@@ -191,13 +159,6 @@ export const updateEventStatus = async (req, res, next) => {
         const { id } = req.params;
         const { status } = req.body;
 
-        if (!status) {
-            throw generateError(
-                'El estado es obligatorio',
-                400
-            );
-        }
-
         const updatedEvent =
             await eventsService.updateEventStatus(
                 id,
@@ -207,7 +168,7 @@ export const updateEventStatus = async (req, res, next) => {
 
         res.status(200).json({
             status: 'success',
-            payload: updatedEvent
+            payload: new EventDTO(updatedEvent)
         });
     } catch (error) {
         next(error);

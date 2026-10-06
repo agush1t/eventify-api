@@ -1,4 +1,5 @@
-import { generateToken } from '../utils/jwt.js';
+﻿import { generateToken } from '../utils/jwt.js';
+import UserDTO from '../dtos/user.dto.js';
 
 export const getSessions = (req, res) => {
     res.status(200).json({
@@ -12,13 +13,7 @@ export const register = (req, res) => {
 
     res.status(201).json({
         status: 'success',
-        payload: {
-            id: user._id,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            email: user.email,
-            role: user.role
-        }
+        payload: new UserDTO(user)
     });
 };
 
@@ -47,11 +42,7 @@ export const login = (req, res) => {
 export const current = (req, res) => {
     res.status(200).json({
         status: 'success',
-        payload: {
-            id: req.user.id,
-            email: req.user.email,
-            role: req.user.role
-        }
+        payload: new UserDTO(req.user)
     });
 };
 
@@ -64,6 +55,6 @@ export const logout = (req, res) => {
 
     res.status(200).json({
         status: 'success',
-        message: 'Sesión cerrada'
+        message: 'SesiÃ³n cerrada'
     });
 };

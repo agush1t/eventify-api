@@ -1,5 +1,4 @@
 import TicketsService from '../services/tickets.service.js';
-import generateError from '../utils/generateError.js';
 
 const ticketsService = new TicketsService();
 
@@ -7,13 +6,6 @@ export const createTicket = async (req, res, next) => {
     try {
         const { eid } = req.params;
         const { quantity } = req.body;
-
-        if (quantity === undefined) {
-            throw generateError(
-                'La cantidad es obligatoria',
-                400
-            );
-        }
 
         const ticket = await ticketsService.createTicket(
             eid,

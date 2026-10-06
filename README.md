@@ -22,6 +22,7 @@ La API utiliza una arquitectura por capas y cuenta con:
 - Filtros, paginación y ordenamiento de eventos.
 - Control de ownership sobre los eventos.
 - Gestión de estados de los eventos.
+- Arquitectura DAO, Repository y DTO.
 
 ---
 
@@ -59,8 +60,56 @@ Repository
   ↓
 DAO
   ↓
+Model
+  ↓
 Base de datos
 ```
+
+Para las respuestas de la API se utilizan DTO:
+
+```text
+Base de datos
+     ↓
+DAO
+     ↓
+Repository
+     ↓
+Service
+     ↓
+DTO
+     ↓
+Controller
+     ↓
+Respuesta HTTP
+```
+
+Cada capa tiene una responsabilidad específica:
+
+- **Routes:** definen los endpoints y aplican middlewares.
+- **Controllers:** coordinan la solicitud y respuesta HTTP.
+- **Services:** contienen la lógica de negocio.
+- **Repositories:** abstraen el acceso a los datos y trabajan con los DAO.
+- **DAO:** realizan exclusivamente las operaciones de acceso a MongoDB mediante Mongoose.
+- **Models:** definen los esquemas de Mongoose.
+- **DTO:** controlan y transforman la información que se expone al cliente.
+
+Esta estructura permite mantener el código organizado, facilitar su mantenimiento y desacoplar la lógica de negocio del acceso a los datos.
+
+### Acceso a datos
+
+Los DAO son la única capa que importa directamente los modelos de Mongoose.
+
+Se encuentran implementados:
+
+- `UsersDAO`
+- `EventsDAO`
+- `TicketsDAO`
+
+Los Repository utilizan los DAO y exponen métodos orientados al dominio.
+
+Los Services utilizan exclusivamente los Repository y no acceden directamente a los modelos ni a los DAO.
+
+### Autenticación y autorización
 
 La autenticación se encuentra centralizada mediante Passport.js y sus estrategias se configuran en:
 
@@ -74,8 +123,6 @@ Los controles de autenticación y autorización se implementan mediante middlewa
 src/middlewares/auth.middleware.js
 src/middlewares/authorize.middleware.js
 ```
-
-Esta estructura permite mantener el código organizado, facilitar su mantenimiento y desacoplar la lógica de negocio del acceso a los datos.
 
 ---
 
@@ -199,6 +246,10 @@ src/
 │   ├── events.dao.js
 │   ├── users.dao.js
 │   └── tickets.dao.js
+├── dtos/
+│   ├── event.dto.js
+│   ├── user.dto.js
+│   └── ticket.dto.js
 ├── models/
 │   ├── User.js
 │   ├── Event.js
@@ -230,9 +281,15 @@ Define los endpoints disponibles de la API y aplica los middlewares de autentica
 
 Reciben las solicitudes HTTP y construyen las respuestas HTTP.
 
-Los controllers utilizan la información colocada en `req.user` por el middleware de autenticación.
+Los controllers:
 
-Los controllers no contienen la lógica de negocio principal.
+- Extraen información de `req.body`, `req.params` y `req.query`.
+- Utilizan la información de `req.user` cuando corresponde.
+- Invocan los métodos de los Services.
+- Devuelven las respuestas HTTP correspondientes.
+- Propagan los errores mediante `next(error)`.
+
+Los controllers no contienen la lógica de negocio principal ni acceden directamente a Mongoose.
 
 ## Services
 
@@ -248,19 +305,130 @@ Se encuentran implementados servicios para:
 
 `tickets.service.js` contiene las reglas relacionadas con inscripciones, cupos, duplicados, cancelaciones y envío de emails.
 
+Los Services no acceden directamente a modelos Mongoose ni a los DAO. Utilizan los Repository correspondientes.
+
 ## Repositories
 
-Abstraen el acceso a la fuente de datos y se comunican con los DAO.
+Abstraen el acceso a la fuente de datos y se comunican exclusivamente con los DAO.
+
+Los Repository exponen métodos orientados al dominio que son utilizados por los Services.
+
+Se encuentran implementados:
+
+- `UsersRepository`
+- `EventsRepository`
+- `TicketsRepository`
+
+De esta manera, la lógica de negocio no depende directamente de Mongoose.
 
 ## DAO
 
-Gestionan el acceso a los datos mediante Mongoose.
+Los DAO gestionan exclusivamente el acceso a los datos mediante Mongoose.
+
+Son la única capa que importa directamente los modelos:
+
+```text
+src/models/
+```
 
 Se encuentran implementados DAO para:
 
 - Usuarios.
 - Eventos.
 - Tickets.
+
+Los DAO exponen operaciones de acceso a datos como:
+
+- Búsqueda por identificador.
+- Búsqueda por email.
+- Creación.
+- Actualización.
+- Búsquedas filtradas.
+- Conteo de documentos.
+- Consultas relacionadas con tickets.
+
+Los DAO no contienen reglas de negocio.
+
+## DTO
+
+Los **DTO (Data Transfer Objects)** se utilizan para controlar y definir la información que la API expone hacia el cliente.
+
+Se encuentran implementados DTO para:
+
+- Usuarios.
+- Eventos.
+- Tickets e inscripciones.
+
+Los archivos se encuentran en:
+
+```text
+src/dtos/
+├── user.dto.js
+├── event.dto.js
+└── ticket.dto.js
+```
+
+Los DTO evitan que los modelos de Mongoose sean enviados directamente como respuesta HTTP.
+
+Además, permiten ocultar información sensible.
+
+Por ejemplo, las respuestas de usuarios nunca incluyen:
+
+```text
+password
+```
+
+Incluso cuando la contraseña se encuentra almacenada mediante un hash en la base de datos, nunca se expone mediante los DTO.
+
+### DTO y documentos relacionados
+
+Cuando un ticket utiliza `populate`, el DTO también controla qué información de los documentos relacionados se expone.
+
+Por ejemplo, un usuario asociado a un ticket puede incluir:
+
+```json
+{
+  "id": "...",
+  "first_name": "...",
+  "last_name": "...",
+  "email": "..."
+}
+```
+
+pero nunca incluye su contraseña.
+
+Del mismo modo, la información del evento asociado al ticket se limita a los datos necesarios para la respuesta:
+
+```json
+{
+  "id": "...",
+  "title": "...",
+  "date": "...",
+  "location": "..."
+}
+```
+
+### Flujo de respuesta
+
+La información sigue el siguiente flujo:
+
+```text
+Base de datos
+     ↓
+DAO
+     ↓
+Repository
+     ↓
+Service
+     ↓
+DTO
+     ↓
+Controller
+     ↓
+Respuesta HTTP
+```
+
+De esta forma, la estructura interna de los modelos queda desacoplada de la representación que recibe el cliente.
 
 ## Models
 
@@ -271,6 +439,8 @@ Actualmente se encuentran definidos los modelos:
 - `User`
 - `Event`
 - `Ticket`
+
+Los modelos solamente son utilizados directamente por los DAO.
 
 ## Middlewares
 
@@ -843,6 +1013,8 @@ Los datos del evento se obtienen mediante `populate` incluyendo:
 
 No se exponen datos sensibles de otros usuarios.
 
+La respuesta se transforma mediante `TicketDTO` antes de ser enviada al cliente.
+
 ---
 
 ## GET `/api/events/:eid/tickets`
@@ -873,6 +1045,8 @@ Un organizer que intenta consultar los tickets de un evento perteneciente a otro
 ```
 
 Los tickets incluyen información del usuario mediante `populate`, sin incluir información sensible como contraseñas.
+
+La respuesta se transforma mediante `TicketDTO`.
 
 ---
 
@@ -954,6 +1128,10 @@ TicketsController
             ↓
 TicketsService
             ↓
+EventsRepository
+            ↓
+EventsDAO
+            ↓
 Verificar evento
             ↓
 Verificar estado published
@@ -966,11 +1144,17 @@ Calcular cupos ocupados
             ↓
 Verificar capacidad disponible
             ↓
+TicketsRepository
+            ↓
+TicketsDAO
+            ↓
 Crear Ticket
             ↓
 Generar reservationCode
             ↓
 Enviar email de confirmación
+            ↓
+TicketDTO
             ↓
 Respuesta 201
 ```
@@ -988,6 +1172,10 @@ TicketsController
             ↓
 TicketsService
             ↓
+TicketsRepository
+            ↓
+TicketsDAO
+            ↓
 Buscar ticket
             ↓
 Verificar ownership/admin
@@ -999,6 +1187,10 @@ status = cancelled
 cancelledAt = fecha actual
             ↓
 Ticket actualizado
+            ↓
+TicketDTO
+            ↓
+Respuesta HTTP
 ```
 
 La cancelación libera automáticamente la cantidad de cupos correspondiente.
@@ -1052,6 +1244,8 @@ La estrategia se encarga de:
 
 El campo `role` no se recibe desde el registro público.
 
+La respuesta de registro se transforma mediante `UserDTO`, por lo que la contraseña nunca se devuelve al cliente.
+
 ---
 
 ## Estrategia `login`
@@ -1086,6 +1280,8 @@ Obtiene el JWT desde la cookie `currentUser`, verifica su firma y expiración y 
 ```text
 req.user
 ```
+
+La respuesta utiliza `UserDTO`, por lo que nunca incluye la contraseña del usuario.
 
 ---
 
@@ -1160,6 +1356,8 @@ Los usuarios `user` y `organizer` reciben:
 ```
 
 La contraseña no se incluye en la respuesta.
+
+La información de los usuarios se obtiene mediante `UsersRepository` y se transforma mediante `UserDTO` antes de ser enviada al cliente.
 
 ---
 
@@ -1241,27 +1439,6 @@ Ejemplos:
 
 ---
 
-# Ownership de eventos
-
-Cada evento almacena el identificador del usuario que lo creó:
-
-```text
-organizer: req.user.id
-```
-
-Esto permite validar la propiedad del recurso.
-
-Cuando un `organizer` intenta modificar un evento:
-
-1. Se autentica al usuario.
-2. Se verifica que tenga rol `organizer` o `admin`.
-3. Se busca el evento.
-4. Si el usuario es `organizer`, se compara su ID con el propietario del evento.
-5. Si no coincide, se devuelve `403`.
-6. Si el usuario es `admin`, puede modificar el evento independientemente de su propietario.
-
----
-
 # Manejo de errores
 
 La aplicación cuenta con un middleware centralizado:
@@ -1280,13 +1457,15 @@ son gestionados por este middleware.
 
 Esto evita duplicar la lógica de respuesta de errores en los diferentes controllers y middlewares.
 
-Los errores de autenticación y autorización se diferencian mediante códigos HTTP:
+Los errores se diferencian mediante códigos HTTP:
 
 ```text
+400 → Error de validación o regla de negocio
 401 → No autenticado
 403 → Autenticado sin permisos
 404 → Recurso no encontrado
-400 → Error de validación o regla de negocio
+409 → Conflicto de datos
+500 → Error interno del servidor
 ```
 
 ---
@@ -1311,11 +1490,13 @@ Los usuarios, eventos y tickets se almacenan mediante Mongoose.
 
 Los tickets mantienen referencias mediante `ObjectId` hacia usuarios y eventos.
 
+Los modelos son accedidos directamente únicamente por la capa DAO.
+
 ---
 
 # Pruebas realizadas
 
-Durante la implementación de PE5, PE6 y PE7 se verificaron diferentes casos funcionales.
+Durante la implementación de PE5, PE6, PE7 y PE8 se verificaron diferentes casos funcionales.
 
 ## PE5
 
@@ -1369,6 +1550,25 @@ Durante la implementación de PE5, PE6 y PE7 se verificaron diferentes casos fun
 | Ticket mantiene `cancelledAt` | Fecha registrada | ✅ |
 | No se elimina físicamente el ticket | Ticket permanece | ✅ |
 
+## PE8
+
+| Caso | Resultado esperado | Resultado |
+|---|---:|:---:|
+| DAO por entidad principal | Implementado | ✅ |
+| Repository por entidad principal | Implementado | ✅ |
+| Services sin acceso directo a DAO/modelos | Cumplido | ✅ |
+| Controllers sin acceso directo a Mongoose | Cumplido | ✅ |
+| DTO de usuario sin password | Cumplido | ✅ |
+| DTO de evento | Implementado | ✅ |
+| DTO de ticket/inscripción | Implementado | ✅ |
+| Ticket poblado sin password del usuario | Cumplido | ✅ |
+| `/api/sessions/current` sin password | Cumplido | ✅ |
+| Sin sesión en endpoint protegido | 401 | ✅ |
+| Usuario sin permisos | 403 | ✅ |
+| Evento inexistente | 404 | ✅ |
+| Ticket ya cancelado | 400 | ✅ |
+| Flujo registro → login → evento → inscripción → tickets → cancelación | Funcional | ✅ |
+
 ---
 
 # Estado del proyecto
@@ -1376,11 +1576,16 @@ Durante la implementación de PE5, PE6 y PE7 se verificaron diferentes casos fun
 Actualmente se encuentran implementadas:
 
 - Arquitectura por capas.
+- Arquitectura DAO, Repository y DTO.
 - Configuración mediante variables de entorno.
 - Conexión con MongoDB Atlas mediante Mongoose.
 - Modelo `User`.
 - Modelo `Event`.
 - Modelo `Ticket`.
+- DAO para usuarios, eventos y tickets.
+- Repository para usuarios, eventos y tickets.
+- Services para usuarios, eventos y tickets.
+- DTO para usuarios, eventos y tickets.
 - Registro seguro de usuarios.
 - Validación de campos obligatorios.
 - Normalización de emails.
@@ -1410,7 +1615,7 @@ Actualmente se encuentran implementadas:
 - Paginación.
 - Ordenamiento.
 - Control de eventos cancelados.
-- Diferenciación entre errores `401`, `403`, `404` y `400`.
+- Diferenciación entre errores `400`, `401`, `403`, `404`, `409` y `500`.
 - Manejo centralizado de errores.
 - Creación de tickets.
 - Inscripciones a eventos.
@@ -1424,6 +1629,9 @@ Actualmente se encuentran implementadas:
 - Generación de códigos de reserva.
 - Envío de emails de confirmación mediante Nodemailer.
 - Configuración SMTP mediante variables de entorno.
+- Protección de respuestas mediante DTO.
+- Ocultamiento de contraseñas y datos sensibles.
+- Filtrado de documentos relacionados mediante DTO.
 
 ---
 
