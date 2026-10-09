@@ -39,14 +39,8 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
         participantRegistration.body.payload.email,
         'participante.test@example.com'
     );
-    assert.equal(
-        participantRegistration.body.payload.role,
-        'user'
-    );
-    assert.equal(
-        participantRegistration.body.payload.password,
-        undefined
-    );
+    assert.equal(participantRegistration.body.payload.role, 'user');
+    assert.equal(participantRegistration.body.payload.password, undefined);
 
     // 2. Registrar al organizador.
     const organizerRegistration = await organizer
@@ -59,6 +53,7 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
         });
 
     assert.equal(organizerRegistration.status, 201);
+    assert.equal(organizerRegistration.body.payload.password, undefined);
 
     // Promoverlo únicamente dentro de la base temporal.
     await User.updateOne(
@@ -99,10 +94,7 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
         currentResponse.body.payload.email,
         'participante.test@example.com'
     );
-    assert.equal(
-        currentResponse.body.payload.password,
-        undefined
-    );
+    assert.equal(currentResponse.body.payload.password, undefined);
 
     // 5. Crear un evento futuro.
     const eventResponse = await organizer
@@ -125,6 +117,7 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
     const eventId = eventResponse.body.payload.id;
 
     assert.equal(eventResponse.body.payload.status, 'draft');
+    assert.equal(eventResponse.body.payload.password, undefined);
 
     // 6. Publicar el evento.
     const publishResponse = await organizer
@@ -133,6 +126,13 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
 
     assert.equal(publishResponse.status, 200);
     assert.equal(publishResponse.body.payload.status, 'published');
+
+    // Comprobar que la ruta de tickets del evento funciona sin tickets.
+    const emptyEventTicketsResponse = await organizer
+        .get(`/api/events/${eventId}/tickets`);
+
+    assert.equal(emptyEventTicketsResponse.status, 200);
+    assert.deepEqual(emptyEventTicketsResponse.body.payload, []);
 
     // 7. Inscribir al participante.
     const ticketResponse = await participant
@@ -146,6 +146,24 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
 
     assert.ok(ticketId);
     assert.equal(ticketResponse.body.payload.quantity, 1);
+    assert.equal(ticketResponse.body.payload.password, undefined);
+
+    // Consultar los tickets del evento: el usuario relacionado debe estar sanitizado.
+    const eventTicketsResponse = await organizer
+        .get(`/api/events/${eventId}/tickets`);
+
+    assert.equal(eventTicketsResponse.status, 200);
+    assert.equal(eventTicketsResponse.body.payload.length, 1);
+
+    const populatedUser = eventTicketsResponse.body.payload[0].user;
+
+    assert.ok(populatedUser);
+    assert.equal(
+        populatedUser.email,
+        'participante.test@example.com'
+    );
+    assert.ok(populatedUser.id);
+    assert.equal(populatedUser.password, undefined);
 
     // 8. Verificar que el ticket aparece en mis inscripciones.
     const myTicketsResponse = await participant
@@ -153,6 +171,16 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
 
     assert.equal(myTicketsResponse.status, 200);
     assert.equal(myTicketsResponse.body.payload.length, 1);
+    assert.equal(
+        myTicketsResponse.body.payload[0].password,
+        undefined
+    );
+
+    // El usuario autenticado no debe recibir la contraseña en sus datos.
+    assert.equal(
+        myTicketsResponse.body.payload[0].user?.password,
+        undefined
+    );
 
     // 9. Cancelar el ticket.
     const cancellationResponse = await participant
@@ -163,8 +191,12 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
         cancellationResponse.body.payload.status,
         'cancelled'
     );
+    assert.equal(
+        cancellationResponse.body.payload.password,
+        undefined
+    );
 
-    // 10. Confirmar que ya no queda una inscripción activa.
+    // 10. Confirmar que la inscripción figura como cancelada.
     const ticketsAfterCancellation = await participant
         .get('/api/tickets/my-tickets');
 
@@ -174,8 +206,11 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
         ticketsAfterCancellation.body.payload[0].status,
         'cancelled'
     );
+    assert.equal(
+        ticketsAfterCancellation.body.payload[0].password,
+        undefined
+    );
 });
-
 
 test('rechaza el acceso a current sin autenticación', async () => {
     const response = await request(app)
@@ -217,7 +252,6 @@ test('rechaza el registro de un email duplicado', async () => {
 
     assert.equal(secondRegistration.status, 409);
 });
-
 
 test('un usuario común no puede crear eventos', async () => {
     const userAgent = request.agent(app);
@@ -268,7 +302,7 @@ test('un usuario no puede cancelar el ticket de otra persona', async () => {
     const ownerRegistration = await participant
         .post('/api/sessions/register')
         .send({
-            first_name: 'Dueño',
+            first_name: 'Dueno',
             last_name: 'Ticket',
             email: 'dueno.ticket.test@example.com',
             password: 'Test123456'
@@ -287,8 +321,6 @@ test('un usuario no puede cancelar el ticket de otra persona', async () => {
         });
 
     assert.equal(organizerRegistration.status, 201);
-
-    const { default: User } = await import('../src/models/User.js');
 
     await User.updateOne(
         { email: 'organizador.ticket.test@example.com' },
@@ -386,5 +418,9 @@ test('un usuario no puede cancelar el ticket de otra persona', async () => {
     assert.equal(
         ownerTickets.body.payload[0].status,
         'confirmed'
+    );
+    assert.equal(
+        ownerTickets.body.payload[0].password,
+        undefined
     );
 });
