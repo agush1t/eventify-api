@@ -1,15 +1,22 @@
+
 import nodemailer from 'nodemailer';
 import config from '../config/config.js';
 
-const transporter = nodemailer.createTransport({
-    host: config.mailHost,
-    port: Number(config.mailPort),
-    secure: Number(config.mailPort) === 465,
-    auth: {
-        user: config.mailUser,
-        pass: config.mailPass
-    }
-});
+const transporter = nodemailer.createTransport(
+    config.nodeEnv === 'test'
+        ? {
+            jsonTransport: true
+        }
+        : {
+            host: config.mailHost,
+            port: Number(config.mailPort),
+            secure: Number(config.mailPort) === 465,
+            auth: {
+                user: config.mailUser,
+                pass: config.mailPass
+            }
+        }
+);
 
 export const sendTicketConfirmationEmail = async ({
     to,
@@ -17,7 +24,7 @@ export const sendTicketConfirmationEmail = async ({
     ticket
 }) => {
     return await transporter.sendMail({
-        from: config.mailFrom,
+        from: config.mailFrom || 'no-reply@eventify.test',
         to,
         subject: `Inscripción confirmada: ${event.title}`,
         text: `
@@ -35,9 +42,11 @@ Código de reserva: ${ticket.reservationCode}
         html: `
             <h2>Inscripción confirmada</h2>
 
-            <p>Tu inscripción al evento
-            <strong>${event.title}</strong>
-            fue confirmada correctamente.</p>
+            <p>
+                Tu inscripción al evento
+                <strong>${event.title}</strong>
+                fue confirmada correctamente.
+            </p>
 
             <p>
                 <strong>Fecha:</strong>
@@ -70,7 +79,7 @@ export const sendTicketCancellationEmail = async ({
     ticket
 }) => {
     return await transporter.sendMail({
-        from: config.mailFrom,
+        from: config.mailFrom || 'no-reply@eventify.test',
         to,
         subject: `Cancelación de inscripción: ${event.title}`,
         text: `

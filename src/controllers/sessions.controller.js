@@ -1,4 +1,4 @@
-﻿import { generateToken } from '../utils/jwt.js';
+import { generateToken } from '../utils/jwt.js';
 import UserDTO from '../dtos/user.dto.js';
 
 export const getSessions = (req, res) => {
@@ -55,6 +55,6 @@ export const logout = (req, res) => {
 
     res.status(200).json({
         status: 'success',
-        message: 'SesiÃ³n cerrada'
+        message: 'Sesión cerrada'
     });
 };

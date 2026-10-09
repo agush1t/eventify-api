@@ -1498,6 +1498,20 @@ Los modelos son accedidos directamente únicamente por la capa DAO.
 
 Durante la implementación de PE5, PE6, PE7 y PE8 se verificaron diferentes casos funcionales.
 
+## Ejecución de pruebas automatizadas
+
+Para ejecutar la suite de pruebas de integración:
+
+```bash
+npm test
+```
+
+Las pruebas verifican el flujo de registro, inicio de sesión, creación y publicación de eventos, generación y cancelación de tickets, así como escenarios de autenticación, autorización y validación de errores.
+
+La suite utiliza `mongodb-memory-server` para ejecutar las pruebas con una base de datos MongoDB temporal, aislada de la base de datos de desarrollo.
+
+La ejecución se considera exitosa cuando todos los tests finalizan correctamente, sin fallos.
+
 ## PE5
 
 | Caso | Resultado esperado | Resultado |

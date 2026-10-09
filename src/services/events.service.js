@@ -1,4 +1,4 @@
-﻿import EventsRepository from '../repositories/events.repository.js';
+import EventsRepository from '../repositories/events.repository.js';
 import generateError from '../utils/generateError.js';
 
 const eventsRepository = new EventsRepository();
@@ -26,7 +26,7 @@ class EventsService {
             pageNumber < 1
         ) {
             throw generateError(
-                'El parÃ¡metro page debe ser un nÃºmero entero mayor a 0',
+                'El parámetro page debe ser un número entero mayor a 0',
                 400
             );
         }
@@ -36,7 +36,7 @@ class EventsService {
             limitNumber < 1
         ) {
             throw generateError(
-                'El parÃ¡metro limit debe ser un nÃºmero entero mayor a 0',
+                'El parámetro limit debe ser un número entero mayor a 0',
                 400
             );
         }
@@ -122,7 +122,7 @@ class EventsService {
 
         if (Number.isNaN(eventDate.getTime())) {
             throw generateError(
-                'La fecha del evento no es vÃ¡lida',
+                'La fecha del evento no es válida',
                 400
             );
         }
@@ -180,7 +180,7 @@ class EventsService {
 
         if (user.role !== 'admin' && !isOwner) {
             throw generateError(
-                'No tenÃ©s permisos para modificar este evento',
+                'No tenés permisos para modificar este evento',
                 403
             );
         }
@@ -190,7 +190,7 @@ class EventsService {
 
             if (Number.isNaN(eventDate.getTime())) {
                 throw generateError(
-                    'La fecha del evento no es vÃ¡lida',
+                    'La fecha del evento no es válida',
                     400
                 );
             }
@@ -238,7 +238,7 @@ class EventsService {
 
         if (!ALLOWED_STATUSES.includes(status)) {
             throw generateError(
-                'Estado de evento no vÃ¡lido',
+                'Estado de evento no válido',
                 400
             );
         }
@@ -254,7 +254,7 @@ class EventsService {
 
         if (user.role !== 'admin' && !isOwner) {
             throw generateError(
-                'No tenÃ©s permisos para modificar este evento',
+                'No tenés permisos para modificar este evento',
                 403
             );
         }

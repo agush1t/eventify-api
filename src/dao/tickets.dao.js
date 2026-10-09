@@ -62,7 +62,7 @@ class TicketsDAO {
             id,
             ticketData,
             {
-                new: true,
+                returnDocument: 'after',
                 runValidators: true
             }
         );

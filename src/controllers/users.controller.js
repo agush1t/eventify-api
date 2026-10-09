@@ -1,4 +1,5 @@
 import UsersService from '../services/users.service.js';
+import UserDTO from '../dtos/user.dto.js';
 
 const usersService = new UsersService();
 
@@ -8,7 +9,7 @@ export const getUsers = async (req, res, next) => {
 
         res.status(200).json({
             status: 'success',
-            payload: users
+            payload: users.map(user => new UserDTO(user))
         });
     } catch (error) {
         next(error);

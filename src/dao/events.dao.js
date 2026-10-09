@@ -57,7 +57,7 @@ class EventsDAO {
             id,
             eventData,
             {
-                new: true,
+                returnDocument: 'after',
                 runValidators: true
             }
         );
