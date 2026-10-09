@@ -158,7 +158,7 @@ Las variables utilizadas son:
 PORT=8080
 NODE_ENV=development
 MONGO_URL=mongodb+srv://<usuario>:<contraseña>@<cluster>/eventify
-JWT_SECRET=clave_secreta
+JWT_SECRET=REEMPLAZAR_POR_UN_SECRETO_ALEATORIO_LARGO
 JWT_EXPIRES_IN=1h
 
 MAIL_HOST=smtp.gmail.com
