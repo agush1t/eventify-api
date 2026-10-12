@@ -1,4 +1,3 @@
-
 import nodemailer from 'nodemailer';
 import config from '../config/config.js';
 
@@ -18,11 +17,31 @@ const transporter = nodemailer.createTransport(
         }
 );
 
+const escapeHtml = (value) => {
+    return String(value ?? '').replace(/[&<>"']/g, (character) => {
+        const entities = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        };
+
+        return entities[character];
+    });
+};
+
 export const sendTicketConfirmationEmail = async ({
     to,
     event,
     ticket
 }) => {
+    const title = escapeHtml(event.title);
+    const date = escapeHtml(new Date(event.date).toLocaleString('es-AR'));
+    const location = escapeHtml(event.location);
+    const quantity = escapeHtml(ticket.quantity);
+    const reservationCode = escapeHtml(ticket.reservationCode);
+
     return await transporter.sendMail({
         from: config.mailFrom || 'no-reply@eventify.test',
         to,
@@ -44,29 +63,14 @@ Código de reserva: ${ticket.reservationCode}
 
             <p>
                 Tu inscripción al evento
-                <strong>${event.title}</strong>
+                <strong>${title}</strong>
                 fue confirmada correctamente.
             </p>
 
-            <p>
-                <strong>Fecha:</strong>
-                ${new Date(event.date).toLocaleString('es-AR')}
-            </p>
-
-            <p>
-                <strong>Lugar:</strong>
-                ${event.location}
-            </p>
-
-            <p>
-                <strong>Cantidad de entradas:</strong>
-                ${ticket.quantity}
-            </p>
-
-            <p>
-                <strong>Código de reserva:</strong>
-                ${ticket.reservationCode}
-            </p>
+            <p><strong>Fecha:</strong> ${date}</p>
+            <p><strong>Lugar:</strong> ${location}</p>
+            <p><strong>Cantidad de entradas:</strong> ${quantity}</p>
+            <p><strong>Código de reserva:</strong> ${reservationCode}</p>
 
             <p>¡Te esperamos!</p>
         `
@@ -78,6 +82,12 @@ export const sendTicketCancellationEmail = async ({
     event,
     ticket
 }) => {
+    const title = escapeHtml(event.title);
+    const date = escapeHtml(new Date(event.date).toLocaleString('es-AR'));
+    const location = escapeHtml(event.location);
+    const quantity = escapeHtml(ticket.quantity);
+    const reservationCode = escapeHtml(ticket.reservationCode);
+
     return await transporter.sendMail({
         from: config.mailFrom || 'no-reply@eventify.test',
         to,
@@ -99,29 +109,14 @@ Si no realizaste esta cancelación, por favor contactá al administrador.
 
             <p>
                 Tu inscripción al evento
-                <strong>${event.title}</strong>
+                <strong>${title}</strong>
                 fue cancelada correctamente.
             </p>
 
-            <p>
-                <strong>Fecha:</strong>
-                ${new Date(event.date).toLocaleString('es-AR')}
-            </p>
-
-            <p>
-                <strong>Lugar:</strong>
-                ${event.location}
-            </p>
-
-            <p>
-                <strong>Cantidad de entradas:</strong>
-                ${ticket.quantity}
-            </p>
-
-            <p>
-                <strong>Código de reserva:</strong>
-                ${ticket.reservationCode}
-            </p>
+            <p><strong>Fecha:</strong> ${date}</p>
+            <p><strong>Lugar:</strong> ${location}</p>
+            <p><strong>Cantidad de entradas:</strong> ${quantity}</p>
+            <p><strong>Código de reserva:</strong> ${reservationCode}</p>
 
             <p>
                 Si no realizaste esta cancelación, por favor contactá al administrador.

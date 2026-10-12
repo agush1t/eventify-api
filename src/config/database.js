@@ -2,12 +2,20 @@ import mongoose from 'mongoose';
 import config from './config.js';
 
 const connectDB = async () => {
+    if (!config.mongoUrl) {
+        throw new Error(
+            'Falta configurar MONGO_URL para conectar con MongoDB.'
+        );
+    }
+
     try {
         await mongoose.connect(config.mongoUrl);
         console.log('MongoDB conectado correctamente');
     } catch (error) {
-        console.error('Error al conectar con MongoDB:', error.message);
-        process.exit(1);
+        throw new Error(
+            `No se pudo conectar con MongoDB: ${error.message}`,
+            { cause: error }
+        );
     }
 };
 
