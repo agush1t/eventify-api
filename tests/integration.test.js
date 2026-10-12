@@ -245,7 +245,8 @@ test('flujo completo: registro, login, evento, ticket y cancelación', async () 
         .post(`/api/events/${eventId}/tickets`)
         .send({ quantity: 1 });
 
-    assert.equal(duplicateTicketResponse.status, 400);
+    // Una inscripción duplicada genera un conflicto HTTP 409.
+    assert.equal(duplicateTicketResponse.status, 409);
 
     // Consultar los tickets del evento y comprobar que el usuario
     // relacionado no expone su contraseña.
@@ -712,7 +713,8 @@ test('cancelar una inscripción libera el cupo del evento', async () => {
         .post(`/api/events/${eventId}/tickets`)
         .send({ quantity: 1 });
 
-    assert.equal(fullEventResponse.status, 400);
+    // La falta de cupos genera un conflicto HTTP 409.
+    assert.equal(fullEventResponse.status, 409);
 
     // Cancelar la inscripción del primer participante.
     const cancellationResponse = await firstParticipant

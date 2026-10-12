@@ -1,3 +1,4 @@
+
 import TicketsRepository from '../repositories/tickets.repository.js';
 import EventsRepository from '../repositories/events.repository.js';
 import generateError from '../utils/generateError.js';
@@ -59,7 +60,7 @@ class TicketsService {
         if (existingTicket) {
             throw generateError(
                 'Ya tenés una inscripción activa para este evento',
-                400
+                409
             );
         }
 
@@ -74,7 +75,7 @@ class TicketsService {
         if (availableQuantity < quantity) {
             throw generateError(
                 `No hay cupos suficientes. Cupos disponibles: ${availableQuantity}`,
-                400
+                409
             );
         }
 
