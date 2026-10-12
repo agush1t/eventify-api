@@ -7,19 +7,26 @@ import {
     sendTicketCancellationEmail
 } from '../utils/mailer.js';
 
-
 const ticketsRepository = new TicketsRepository();
 const eventsRepository = new EventsRepository();
 
 class TicketsService {
+    async sendEmailSafely(emailFunction, emailData, context) {
+        try {
+            await emailFunction(emailData);
+        } catch (error) {
+            console.error(
+                `No se pudo enviar el correo de ${context}:`,
+                error.message
+            );
+        }
+    }
+
     async createTicket(eventId, user, quantity) {
         const event = await eventsRepository.getById(eventId);
 
         if (!event) {
-            throw generateError(
-                'Evento no encontrado',
-                404
-            );
+            throw generateError('Evento no encontrado', 404);
         }
 
         if (event.status !== 'published') {
@@ -36,10 +43,7 @@ class TicketsService {
             );
         }
 
-        if (
-            !Number.isInteger(quantity) ||
-            quantity <= 0
-        ) {
+        if (!Number.isInteger(quantity) || quantity <= 0) {
             throw generateError(
                 'La cantidad debe ser un número entero mayor a 0',
                 400
@@ -60,9 +64,7 @@ class TicketsService {
         }
 
         const occupiedQuantity =
-            await ticketsRepository.getActiveQuantityByEvent(
-                eventId
-            );
+            await ticketsRepository.getActiveQuantityByEvent(eventId);
 
         const availableQuantity = Math.max(
             event.capacity - occupiedQuantity,
@@ -90,11 +92,15 @@ class TicketsService {
             reservationCode
         });
 
-        await sendTicketConfirmationEmail({
-            to: user.email,
-            event,
-            ticket
-        });
+        await this.sendEmailSafely(
+            sendTicketConfirmationEmail,
+            {
+                to: user.email,
+                event,
+                ticket
+            },
+            'confirmación de inscripción'
+        );
 
         return new TicketDTO(ticket);
     }
@@ -109,19 +115,13 @@ class TicketsService {
         const event = await eventsRepository.getById(eventId);
 
         if (!event) {
-            throw generateError(
-                'Evento no encontrado',
-                404
-            );
+            throw generateError('Evento no encontrado', 404);
         }
 
         const isOwner =
             event.organizer.toString() === user.id.toString();
 
-        if (
-            user.role !== 'admin' &&
-            !isOwner
-        ) {
+        if (user.role !== 'admin' && !isOwner) {
             throw generateError(
                 'No tenés permisos para consultar los tickets de este evento',
                 403
@@ -134,23 +134,19 @@ class TicketsService {
     }
 
     async cancelTicket(ticketId, user) {
-        const ticket =
-            await ticketsRepository.getById(ticketId);
+        const ticket = await ticketsRepository.getById(ticketId);
 
         if (!ticket) {
-            throw generateError(
-                'Ticket no encontrado',
-                404
-            );
+            throw generateError('Ticket no encontrado', 404);
         }
 
-        const isOwner =
-            ticket.user.toString() === user.id.toString();
+        const ticketOwnerId =
+            ticket.user?._id?.toString() ||
+            ticket.user?.toString();
 
-        if (
-            user.role !== 'admin' &&
-            !isOwner
-        ) {
+        const isOwner = ticketOwnerId === user.id.toString();
+
+        if (user.role !== 'admin' && !isOwner) {
             throw generateError(
                 'No tenés permisos para cancelar este ticket',
                 403
@@ -158,10 +154,7 @@ class TicketsService {
         }
 
         if (ticket.status === 'cancelled') {
-            throw generateError(
-                'El ticket ya está cancelado',
-                400
-            );
+            throw generateError('El ticket ya está cancelado', 400);
         }
 
         const cancelledTicket = await ticketsRepository.update(
@@ -172,15 +165,21 @@ class TicketsService {
             }
         );
 
-        const event = await eventsRepository.getById(
-            ticket.event
-        );
+        const event = await eventsRepository.getById(ticket.event);
 
-        await sendTicketCancellationEmail({
-            to: user.email,
-            event,
-            ticket: cancelledTicket
-        });
+        // El correo debe llegar al titular del ticket.
+        // Si el usuario ya no existe, no se envía.
+        if (ticket.user?.email && event) {
+            await this.sendEmailSafely(
+                sendTicketCancellationEmail,
+                {
+                    to: ticket.user.email,
+                    event,
+                    ticket: cancelledTicket
+                },
+                'cancelación de inscripción'
+            );
+        }
 
         return new TicketDTO(cancelledTicket);
     }

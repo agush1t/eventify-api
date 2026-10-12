@@ -94,13 +94,11 @@ passport.use(
 // ================================
 
 const cookieExtractor = (req) => {
-    let token = null;
-
-    if (req && req.cookies) {
-        token = req.cookies.currentUser;
+    if (req?.cookies?.currentUser) {
+        return req.cookies.currentUser;
     }
 
-    return token;
+    return null;
 };
 
 // ================================
@@ -118,11 +116,25 @@ passport.use(
         },
         async (payload, done) => {
             try {
-                return done(null, payload);
+                if (!payload?.id) {
+                    return done(
+                        generateError('No autenticado', 401),
+                        false
+                    );
+                }
+
+                const user = await usersService.findById(payload.id);
+
+                if (!user) {
+                    return done(
+                        generateError('No autenticado', 401),
+                        false
+                    );
+                }
+
+                return done(null, user);
             } catch (error) {
-                return done(
-                    generateError('No autenticado', 401)
-                );
+                return done(error);
             }
         }
     )

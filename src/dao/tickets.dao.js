@@ -7,7 +7,8 @@ class TicketsDAO {
     }
 
     async getById(id) {
-        return await Ticket.findById(id);
+        return await Ticket.findById(id)
+            .populate('user', 'first_name last_name email');
     }
 
     async getByUser(userId) {

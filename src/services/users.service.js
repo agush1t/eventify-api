@@ -36,7 +36,10 @@ class UsersService {
             );
         }
 
-        if (typeof password !== 'string' || password.length < 6) {
+        if (
+            typeof password !== 'string' ||
+            password.length < 6
+        ) {
             throw generateError(
                 'La contraseña debe tener al menos 6 caracteres',
                 400
@@ -65,7 +68,17 @@ class UsersService {
     }
 
     async findByEmail(email) {
-        return await usersRepository.findByEmail(email);
+        return await usersRepository.findByEmail(
+            email.trim().toLowerCase()
+        );
+    }
+
+    async findById(id) {
+        if (!id) {
+            return null;
+        }
+
+        return await usersRepository.findById(id);
     }
 
     async createUser(userData) {

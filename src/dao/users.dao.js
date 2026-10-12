@@ -2,7 +2,13 @@ import User from '../models/User.js';
 
 class UsersDAO {
     async findByEmail(email) {
-        return await User.findOne({ email });
+        return await User.findOne({
+            email: email.trim().toLowerCase()
+        });
+    }
+
+    async findById(id) {
+        return await User.findById(id);
     }
 
     async create(userData) {
