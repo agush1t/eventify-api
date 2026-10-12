@@ -1,4 +1,4 @@
-import EventsRepository from '../repositories/events.repository.js';
+﻿import EventsRepository from '../repositories/events.repository.js';
 import generateError from '../utils/generateError.js';
 
 const eventsRepository = new EventsRepository();
@@ -8,6 +8,12 @@ const ALLOWED_STATUSES = [
     'published',
     'cancelled',
     'finished'
+];
+
+const ALLOWED_SORT_FIELDS = [
+    'date',
+    'title',
+    'price'
 ];
 
 class EventsService {
@@ -41,17 +47,18 @@ class EventsService {
             );
         }
 
+        if (typeof sort !== 'string' || !sort.trim()) {
+            throw generateError(
+                'El campo de ordenamiento no es válido',
+                400
+            );
+        }
+
         const sortField = sort.startsWith('-')
             ? sort.substring(1)
             : sort;
 
-        const allowedSortFields = [
-            'date',
-            'title',
-            'price'
-        ];
-
-        if (!allowedSortFields.includes(sortField)) {
+        if (!ALLOWED_SORT_FIELDS.includes(sortField)) {
             throw generateError(
                 'Campo de ordenamiento no permitido: ' + sortField,
                 400
@@ -78,7 +85,7 @@ class EventsService {
         };
     }
 
-        async getEventById(id) {
+    async getEventById(id) {
         const event = await eventsRepository.getById(id);
 
         if (!event) {
@@ -110,10 +117,35 @@ class EventsService {
             !date ||
             !location ||
             capacity === undefined ||
-            price === undefined
+            capacity === null ||
+            price === undefined ||
+            price === null
         ) {
             throw generateError(
                 'Todos los campos obligatorios del evento deben estar completos',
+                400
+            );
+        }
+
+        if (
+            typeof capacity !== 'number' ||
+            !Number.isFinite(capacity) ||
+            !Number.isInteger(capacity) ||
+            capacity < 1
+        ) {
+            throw generateError(
+                'La capacidad debe ser un número entero mayor a 0',
+                400
+            );
+        }
+
+        if (
+            typeof price !== 'number' ||
+            !Number.isFinite(price) ||
+            price < 0
+        ) {
+            throw generateError(
+                'El precio debe ser un número válido mayor o igual a 0',
                 400
             );
         }
@@ -130,20 +162,6 @@ class EventsService {
         if (eventDate <= new Date()) {
             throw generateError(
                 'La fecha del evento debe ser futura',
-                400
-            );
-        }
-
-        if (capacity <= 0) {
-            throw generateError(
-                'La capacidad debe ser mayor a 0',
-                400
-            );
-        }
-
-        if (price < 0) {
-            throw generateError(
-                'El precio no puede ser negativo',
                 400
             );
         }
@@ -165,7 +183,10 @@ class EventsService {
         const event = await eventsRepository.getById(id);
 
         if (!event) {
-            throw generateError('Evento no encontrado', 404);
+            throw generateError(
+                'Evento no encontrado',
+                404
+            );
         }
 
         if (event.status === 'cancelled') {
@@ -205,24 +226,31 @@ class EventsService {
             eventData.date = eventDate;
         }
 
-        if (
-            eventData.capacity !== undefined &&
-            eventData.capacity <= 0
-        ) {
-            throw generateError(
-                'La capacidad debe ser mayor a 0',
-                400
-            );
+        if (eventData.capacity !== undefined) {
+            if (
+                typeof eventData.capacity !== 'number' ||
+                !Number.isFinite(eventData.capacity) ||
+                !Number.isInteger(eventData.capacity) ||
+                eventData.capacity < 1
+            ) {
+                throw generateError(
+                    'La capacidad debe ser un número entero mayor a 0',
+                    400
+                );
+            }
         }
 
-        if (
-            eventData.price !== undefined &&
-            eventData.price < 0
-        ) {
-            throw generateError(
-                'El precio no puede ser negativo',
-                400
-            );
+        if (eventData.price !== undefined) {
+            if (
+                typeof eventData.price !== 'number' ||
+                !Number.isFinite(eventData.price) ||
+                eventData.price < 0
+            ) {
+                throw generateError(
+                    'El precio debe ser un número válido mayor o igual a 0',
+                    400
+                );
+            }
         }
 
         return await eventsRepository.update(id, eventData);
@@ -246,7 +274,10 @@ class EventsService {
         const event = await eventsRepository.getById(id);
 
         if (!event) {
-            throw generateError('Evento no encontrado', 404);
+            throw generateError(
+                'Evento no encontrado',
+                404
+            );
         }
 
         const isOwner =
