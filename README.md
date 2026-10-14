@@ -1,4 +1,4 @@
-# Eventify API
+﻿# Eventify API
 
 API REST para gestionar **eventos e inscripciones**, desarrollada con **Node.js, Express 5, MongoDB y Mongoose**. Permite registrar usuarios, iniciar sesión, organizar eventos, publicar un catálogo público, reservar entradas y cancelar inscripciones, con controles de acceso y capacidad.
 
@@ -154,7 +154,7 @@ Representa una cuenta con nombre, apellido, email, contraseña almacenada median
 | `status` | String | `confirmed`, `pending` o `cancelled`. |
 | `reservationCode` | String | Código único de reserva. |
 | `cancelledAt` | Date | Fecha de cancelación, si corresponde. |
-| `createdAt`, `updatedAt` | Date | Marcas temporales del documento. |
+| `createdAt` | Date | Fecha de creación de la inscripción. |
 
 El flujo de inscripción actual genera tickets `confirmed`; `pending` está definido en el modelo, pero no se implementa una lista de espera automática.
 
@@ -422,3 +422,4 @@ Las pruebas de correo utilizan un transporte simulado: no comprueban la entrega 
 
 **Eventify API** — Proyecto de Backend II, Coderhouse.  
 **Código fuente:** https://github.com/agush1t/eventify-api
+
