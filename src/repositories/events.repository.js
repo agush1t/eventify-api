@@ -23,8 +23,8 @@ class EventsRepository {
         return await eventsDAO.create(eventData);
     }
 
-    async update(id, eventData) {
-        return await eventsDAO.update(id, eventData);
+    async update(id, eventData, session) {
+        return await eventsDAO.update(id, eventData, session);
     }
 }
 

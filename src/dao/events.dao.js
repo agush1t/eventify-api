@@ -67,13 +67,14 @@ class EventsDAO {
         return await Event.create(eventData);
     }
 
-    async update(id, eventData) {
+    async update(id, eventData, session) {
         return await Event.findByIdAndUpdate(
             id,
             eventData,
             {
                 returnDocument: 'after',
-                runValidators: true
+                runValidators: true,
+                session
             }
         );
     }

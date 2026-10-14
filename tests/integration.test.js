@@ -1,4 +1,3 @@
-
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
@@ -766,4 +765,51 @@ test('dos reservas simultáneas no superan el último cupo', async () => {
     assert.deepEqual(responses.map(r => r.status).sort(), [201, 409]);
     const saved = await Ticket.find({ event: id, status: 'confirmed' });
     assert.equal(saved.reduce((sum, t) => sum + t.quantity, 0), 1);
+});
+
+
+test('etapa 3: capacidad, estados y permisos de edición', async () => {
+    const organizer = request.agent(app);
+    const participant = request.agent(app);
+    const stranger = request.agent(app);
+    const createUser = async (agent, email) => {
+        const reg = await agent.post('/api/sessions/register').send({
+            first_name: 'Prueba', last_name: 'Etapa3', email, password: 'Test123456'
+        });
+        assert.equal(reg.status, 201);
+    };
+    await createUser(organizer, 'organizador.etapa3@example.com');
+    await createUser(participant, 'participante.etapa3@example.com');
+    await createUser(stranger, 'extrano.etapa3@example.com');
+    await User.updateOne({ email: 'organizador.etapa3@example.com' }, { $set: { role: 'organizer' } });
+    for (const [agent, email] of [
+        [organizer, 'organizador.etapa3@example.com'],
+        [participant, 'participante.etapa3@example.com'],
+        [stranger, 'extrano.etapa3@example.com']
+    ]) {
+        assert.equal((await agent.post('/api/sessions/login').send({ email, password: 'Test123456' })).status, 200);
+    }
+    const eventResponse = await organizer.post('/api/events').send({
+        title: 'Evento etapa 3', description: 'Control de capacidad', category: 'Tecnología',
+        location: 'Buenos Aires', date: new Date(Date.now() + 86400000 * 30).toISOString(),
+        capacity: 2, price: 0
+    });
+    assert.equal(eventResponse.status, 201);
+    const id = eventResponse.body.payload.id;
+    assert.equal((await stranger.put(`/api/events/${id}`).send({ capacity: 3 })).status, 403);
+    assert.equal((await organizer.patch(`/api/events/${id}/status`).send({ status: 'finished' })).status, 400);
+    assert.equal((await organizer.patch(`/api/events/${id}/status`).send({ status: 'published' })).status, 200);
+    assert.equal((await organizer.patch(`/api/events/${id}/status`).send({ status: 'draft' })).status, 400);
+    assert.equal((await organizer.patch(`/api/events/${id}/status`).send({ status: 'finished' })).status, 400);
+    assert.equal((await participant.post(`/api/events/${id}/tickets`).send({ quantity: 2 })).status, 201);
+    assert.equal((await organizer.put(`/api/events/${id}`).send({ capacity: 1 })).status, 409);
+    assert.equal((await organizer.put(`/api/events/${id}`).send({ capacity: 2 })).status, 200);
+    assert.equal((await organizer.patch(`/api/events/${id}/status`).send({ status: 'cancelled' })).status, 200);
+    assert.equal((await organizer.patch(`/api/events/${id}/status`).send({ status: 'published' })).status, 400);
+    assert.equal((await organizer.put(`/api/events/${id}`).send({ title: 'Nuevo' })).status, 400);
+});
+
+test('etapa 3: valida textos vacíos y límite de paginación', async () => {
+    const response = await request(app).get('/api/events?limit=101');
+    assert.equal(response.status, 400);
 });
