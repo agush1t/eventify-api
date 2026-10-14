@@ -3,12 +3,12 @@ import TicketsDAO from '../dao/tickets.dao.js';
 const ticketsDAO = new TicketsDAO();
 
 class TicketsRepository {
-    async create(ticketData) {
-        return await ticketsDAO.create(ticketData);
+    async create(ticketData, session) {
+        return await ticketsDAO.create(ticketData, session);
     }
 
-    async getById(id) {
-        return await ticketsDAO.getById(id);
+    async getById(id, session) {
+        return await ticketsDAO.getById(id, session);
     }
 
     async getByUser(userId) {
@@ -19,15 +19,20 @@ class TicketsRepository {
         return await ticketsDAO.getByEvent(eventId);
     }
 
-    async findActiveByUserAndEvent(userId, eventId) {
+    async findActiveByUserAndEvent(userId, eventId, session) {
         return await ticketsDAO.findActiveByUserAndEvent(
             userId,
-            eventId
+            eventId,
+            session
         );
     }
 
-    async getActiveQuantityByEvent(eventId) {
-        return await ticketsDAO.getActiveQuantityByEvent(eventId);
+    async getActiveQuantityByEvent(eventId, session) {
+        return await ticketsDAO.getActiveQuantityByEvent(eventId, session);
+    }
+
+    async cancelIfActive(id, session) {
+        return await ticketsDAO.cancelIfActive(id, session);
     }
 
     async update(id, ticketData) {

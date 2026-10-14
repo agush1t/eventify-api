@@ -20,7 +20,8 @@ const ticketSchema = new mongoose.Schema(
         quantity: {
             type: Number,
             required: true,
-            min: 1
+            min: 1,
+            validate: Number.isInteger
         },
         reservationCode: {
             type: String,
@@ -38,6 +39,12 @@ const ticketSchema = new mongoose.Schema(
             updatedAt: false
         }
     }
+);
+
+// Garantiza una sola inscripción activa por usuario y evento.
+ticketSchema.index(
+    { user: 1, event: 1 },
+    { unique: true, partialFilterExpression: { status: { $in: ['confirmed', 'pending'] } } }
 );
 
 const Ticket = mongoose.model('Ticket', ticketSchema);

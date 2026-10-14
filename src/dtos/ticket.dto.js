@@ -7,7 +7,7 @@ class TicketDTO {
         this.cancelledAt = ticket.cancelledAt;
         this.createdAt = ticket.createdAt;
 
-        if (ticket.event && typeof ticket.event === 'object') {
+        if (ticket.event && ticket.event.title !== undefined) {
             this.event = {
                 id: ticket.event._id?.toString() || ticket.event.id,
                 title: ticket.event.title,
@@ -18,7 +18,7 @@ class TicketDTO {
             this.event = ticket.event.toString();
         }
 
-        if (ticket.user && typeof ticket.user === 'object') {
+        if (ticket.user && ticket.user.email !== undefined) {
             this.user = {
                 id: ticket.user._id?.toString() || ticket.user.id,
                 first_name: ticket.user.first_name,

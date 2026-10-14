@@ -2,18 +2,20 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import request from 'supertest';
 
 // Configurar testing antes de importar la aplicación.
 process.env.NODE_ENV = 'test';
 
-const mongo = await MongoMemoryServer.create();
+const mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
 
 await mongoose.connect(mongo.getUri());
 
 const { default: app } = await import('../src/app.js');
 const { default: User } = await import('../src/models/User.js');
+const { default: Ticket } = await import('../src/models/Ticket.js');
+await Ticket.init();
 
 after(async () => {
     await mongoose.disconnect();
@@ -734,4 +736,34 @@ test('cancelar una inscripción libera el cupo del evento', async () => {
     assert.equal(secondTicket.status, 201);
     assert.equal(secondTicket.body.payload.status, 'confirmed');
     assert.equal(secondTicket.body.payload.quantity, 1);
+});
+
+
+test('dos reservas simultáneas no superan el último cupo', async () => {
+    const { default: Ticket } = await import('../src/models/Ticket.js');
+    const { default: User } = await import('../src/models/User.js');
+    // Crear los usuarios a través del registro/login público para probar las cookies.
+    const organizer = request.agent(app);
+    const users = [request.agent(app), request.agent(app)];
+    const suffix = Date.now().toString(36);
+    for (const [i, agent] of [organizer, ...users].entries()) {
+        const email = `race${i}-${suffix}@example.com`;
+        assert.equal((await agent.post('/api/sessions/register').send({
+            first_name: 'Test', last_name: 'Race', email, password: 'Test123456'
+        })).status, 201);
+        if (i === 0) await User.updateOne({ email }, { $set: { role: 'organizer' } });
+        assert.equal((await agent.post('/api/sessions/login').send({ email, password: 'Test123456' })).status, 200);
+    }
+    const created = await organizer.post('/api/events').send({
+        title: 'Último cupo', description: 'Prueba simultánea', category: 'Test',
+        date: new Date(Date.now() + 86400000).toISOString(),
+        location: 'Buenos Aires', capacity: 1, price: 0
+    });
+    assert.equal(created.status, 201);
+    const id = created.body.payload.id;
+    assert.equal((await organizer.patch(`/api/events/${id}/status`).send({ status: 'published' })).status, 200);
+    const responses = await Promise.all(users.map(agent => agent.post(`/api/events/${id}/tickets`).send({ quantity: 1 })));
+    assert.deepEqual(responses.map(r => r.status).sort(), [201, 409]);
+    const saved = await Ticket.find({ event: id, status: 'confirmed' });
+    assert.equal(saved.reduce((sum, t) => sum + t.quantity, 0), 1);
 });

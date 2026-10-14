@@ -44,8 +44,23 @@ class EventsDAO {
         };
     }
 
-    async getById(id) {
-        return await Event.findById(id);
+    async getById(id, session) {
+        return await Event.findById(id).session(session);
+    }
+
+    async touchForReservation(id, session) {
+        return await Event.findOneAndUpdate(
+            { _id: id, status: 'published', date: { $gt: new Date() } },
+            { $inc: { reservationVersion: 1 } },
+            { session, returnDocument: 'after' }
+        );
+    }
+
+    async touchForCancellation(id, session) {
+        return await Event.findByIdAndUpdate(
+            id, { $inc: { reservationVersion: 1 } },
+            { session, returnDocument: 'after' }
+        );
     }
 
     async create(eventData) {

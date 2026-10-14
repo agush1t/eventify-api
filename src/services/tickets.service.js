@@ -1,4 +1,5 @@
-
+import mongoose from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import TicketsRepository from '../repositories/tickets.repository.js';
 import EventsRepository from '../repositories/events.repository.js';
 import generateError from '../utils/generateError.js';
@@ -24,85 +25,54 @@ class TicketsService {
     }
 
     async createTicket(eventId, user, quantity) {
-        const event = await eventsRepository.getById(eventId);
-
-        if (!event) {
-            throw generateError('Evento no encontrado', 404);
-        }
-
-        if (event.status !== 'published') {
-            throw generateError(
-                'El evento no está disponible para inscripciones',
-                400
-            );
-        }
-
-        if (new Date(event.date) <= new Date()) {
-            throw generateError(
-                'No se puede inscribir a un evento que ya comenzó',
-                400
-            );
-        }
-
         if (!Number.isInteger(quantity) || quantity <= 0) {
-            throw generateError(
-                'La cantidad debe ser un número entero mayor a 0',
-                400
-            );
+            throw generateError('La cantidad debe ser un número entero mayor a 0', 400);
         }
 
-        const existingTicket =
-            await ticketsRepository.findActiveByUserAndEvent(
-                user.id,
-                eventId
-            );
+        let ticket;
+        let event;
+        const session = await mongoose.startSession();
+        try {
+            await session.withTransaction(async () => {
+                // Todos los cambios de reservas escriben sobre el mismo evento.
+                // MongoDB detecta el conflicto y reintenta con una vista actualizada.
+                event = await eventsRepository.touchForReservation(eventId, session);
+                if (!event) {
+                    const existing = await eventsRepository.getById(eventId, session);
+                    if (!existing) throw generateError('Evento no encontrado', 404);
+                    throw generateError('El evento no está disponible para inscripciones', 400);
+                }
 
-        if (existingTicket) {
-            throw generateError(
-                'Ya tenés una inscripción activa para este evento',
-                409
-            );
+                const existingTicket = await ticketsRepository.findActiveByUserAndEvent(
+                    user.id, eventId, session
+                );
+                if (existingTicket) {
+                    throw generateError('Ya tenés una inscripción activa para este evento', 409);
+                }
+
+                const occupied = await ticketsRepository.getActiveQuantityByEvent(eventId, session);
+                const available = Math.max(event.capacity - occupied, 0);
+                if (available < quantity) {
+                    throw generateError(`No hay cupos suficientes. Cupos disponibles: ${available}`, 409);
+                }
+
+                ticket = await ticketsRepository.create({
+                    user: user.id,
+                    event: eventId,
+                    status: 'confirmed',
+                    quantity,
+                    reservationCode: `EVT-${randomUUID()}`
+                }, session);
+            });
+        } finally {
+            await session.endSession();
         }
-
-        const occupiedQuantity =
-            await ticketsRepository.getActiveQuantityByEvent(eventId);
-
-        const availableQuantity = Math.max(
-            event.capacity - occupiedQuantity,
-            0
-        );
-
-        if (availableQuantity < quantity) {
-            throw generateError(
-                `No hay cupos suficientes. Cupos disponibles: ${availableQuantity}`,
-                409
-            );
-        }
-
-        const reservationCode =
-            `EVT-${Date.now()}-${Math.random()
-                .toString(36)
-                .substring(2, 8)
-                .toUpperCase()}`;
-
-        const ticket = await ticketsRepository.create({
-            user: user.id,
-            event: eventId,
-            status: 'confirmed',
-            quantity,
-            reservationCode
-        });
 
         await this.sendEmailSafely(
             sendTicketConfirmationEmail,
-            {
-                to: user.email,
-                event,
-                ticket
-            },
+            { to: user.email, event, ticket },
             'confirmación de inscripción'
         );
-
         return new TicketDTO(ticket);
     }
 
@@ -135,53 +105,42 @@ class TicketsService {
     }
 
     async cancelTicket(ticketId, user) {
-        const ticket = await ticketsRepository.getById(ticketId);
+        let cancelledTicket;
+        let event;
+        let ownerEmail;
+        const session = await mongoose.startSession();
+        try {
+            await session.withTransaction(async () => {
+                const ticket = await ticketsRepository.getById(ticketId, session);
+                if (!ticket) throw generateError('Ticket no encontrado', 404);
 
-        if (!ticket) {
-            throw generateError('Ticket no encontrado', 404);
+                const ownerId = ticket.user?._id?.toString() || ticket.user?.toString();
+                if (user.role !== 'admin' && ownerId !== user.id.toString()) {
+                    throw generateError('No tenés permisos para cancelar este ticket', 403);
+                }
+                if (ticket.status === 'cancelled') {
+                    throw generateError('El ticket ya está cancelado', 400);
+                }
+
+                // Escribir el evento coordina cancelaciones, reservas y cambios de capacidad.
+                event = await eventsRepository.getById(ticket.event, session);
+                if (event) await eventsRepository.touchForCancellation(event._id, session);
+
+                cancelledTicket = await ticketsRepository.cancelIfActive(ticketId, session);
+                if (!cancelledTicket) throw generateError('El ticket ya está cancelado', 400);
+                ownerEmail = ticket.user?.email;
+            });
+        } finally {
+            await session.endSession();
         }
 
-        const ticketOwnerId =
-            ticket.user?._id?.toString() ||
-            ticket.user?.toString();
-
-        const isOwner = ticketOwnerId === user.id.toString();
-
-        if (user.role !== 'admin' && !isOwner) {
-            throw generateError(
-                'No tenés permisos para cancelar este ticket',
-                403
-            );
-        }
-
-        if (ticket.status === 'cancelled') {
-            throw generateError('El ticket ya está cancelado', 400);
-        }
-
-        const cancelledTicket = await ticketsRepository.update(
-            ticketId,
-            {
-                status: 'cancelled',
-                cancelledAt: new Date()
-            }
-        );
-
-        const event = await eventsRepository.getById(ticket.event);
-
-        // El correo debe llegar al titular del ticket.
-        // Si el usuario ya no existe, no se envía.
-        if (ticket.user?.email && event) {
+        if (ownerEmail && event) {
             await this.sendEmailSafely(
                 sendTicketCancellationEmail,
-                {
-                    to: ticket.user.email,
-                    event,
-                    ticket: cancelledTicket
-                },
+                { to: ownerEmail, event, ticket: cancelledTicket },
                 'cancelación de inscripción'
             );
         }
-
         return new TicketDTO(cancelledTicket);
     }
 }

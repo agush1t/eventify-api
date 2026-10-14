@@ -40,6 +40,7 @@ const eventSchema = new mongoose.Schema({
         enum: ['draft', 'published', 'cancelled', 'finished'],
         default: 'draft'
     },
+    reservationVersion: { type: Number, default: 0, select: false },
     organizer: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',

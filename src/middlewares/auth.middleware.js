@@ -6,7 +6,11 @@ const auth = (req, res, next) => {
         'current',
         { session: false },
         (error, user) => {
-            if (error || !user) {
+            if (error) {
+                return next(error);
+            }
+
+            if (!user) {
                 return next(generateError('No autenticado', 401));
             }
 
