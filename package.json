@@ -1,5 +1,8 @@
 {
   "name": "eventify-api",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "version": "1.0.0",
   "description": "API REST para una plataforma de eventos e inscripciones",
   "main": "src/server.js",
@@ -9,7 +12,7 @@
     "test": "node --test"
   },
   "keywords": [],
-  "author": "",
+  "author": "Agustin Acosta",
   "license": "ISC",
   "type": "module",
   "dependencies": {
