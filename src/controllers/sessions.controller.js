@@ -1,3 +1,4 @@
+import config from '../config/config.js';
 import { generateToken } from '../utils/jwt.js';
 import UserDTO from '../dtos/user.dto.js';
 
@@ -29,8 +30,8 @@ export const login = (req, res) => {
     res.cookie('currentUser', token, {
         httpOnly: true,
         sameSite: 'lax',
-        maxAge: 3600000,
-        secure: process.env.NODE_ENV === 'production'
+        maxAge: config.jwtCookieMaxAge,
+        secure: config.nodeEnv === 'production'
     });
 
     res.status(200).json({
@@ -50,7 +51,7 @@ export const logout = (req, res) => {
     res.clearCookie('currentUser', {
         httpOnly: true,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production'
+        secure: config.nodeEnv === 'production'
     });
 
     res.status(200).json({

@@ -813,3 +813,34 @@ test('etapa 3: valida textos vacíos y límite de paginación', async () => {
     const response = await request(app).get('/api/events?limit=101');
     assert.equal(response.status, 400);
 });
+
+
+test('etapa 4: cookie y JWT expiran de manera coherente', async () => {
+    const jwt = await import('jsonwebtoken');
+    const { default: config } = await import('../src/config/config.js');
+    const email = `etapa4-cookie-${Date.now()}@example.com`;
+    const agent = request.agent(app);
+    assert.equal((await agent.post('/api/sessions/register').send({
+        first_name: 'Cookie', last_name: 'Test', email, password: 'Test123456'
+    })).status, 201);
+    const response = await agent.post('/api/sessions/login').send({ email, password: 'Test123456' });
+    assert.equal(response.status, 200);
+    const cookie = response.headers['set-cookie'].find(value => value.startsWith('currentUser='));
+    assert.ok(cookie);
+    assert.match(cookie, /HttpOnly/i);
+    assert.match(cookie, /SameSite=Lax/i);
+    assert.match(cookie, /Max-Age=3600(?:;|$)/i);
+    const token = decodeURIComponent(cookie.split(';')[0].split('=').slice(1).join('='));
+    const decoded = jwt.default.verify(token, config.jwtSecret);
+    assert.equal(decoded.exp - decoded.iat, 3600);
+});
+
+test('etapa 4: token expirado o manipulado no permite acceder a current', async () => {
+    const jwt = await import('jsonwebtoken');
+    const { default: config } = await import('../src/config/config.js');
+    const expired = jwt.default.sign({ id: new mongoose.Types.ObjectId().toString() }, config.jwtSecret, { expiresIn: -1 });
+    const expiredResponse = await request(app).get('/api/sessions/current').set('Cookie', `currentUser=${expired}`);
+    assert.equal(expiredResponse.status, 401);
+    const invalidResponse = await request(app).get('/api/sessions/current').set('Cookie', 'currentUser=token-invalido');
+    assert.equal(invalidResponse.status, 401);
+});

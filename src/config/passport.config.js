@@ -117,19 +117,13 @@ passport.use(
         async (payload, done) => {
             try {
                 if (!payload?.id) {
-                    return done(
-                        generateError('No autenticado', 401),
-                        false
-                    );
+                    return done(null, false);
                 }
 
                 const user = await usersService.findById(payload.id);
 
                 if (!user) {
-                    return done(
-                        generateError('No autenticado', 401),
-                        false
-                    );
+                    return done(null, false);
                 }
 
                 return done(null, user);

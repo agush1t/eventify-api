@@ -2,12 +2,27 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Aceptamos unidades explícitas para evitar ambigüedades de jsonwebtoken.
+// La cookie y el token utilizan el mismo tiempo de vida.
+const JWT_DURATION_UNITS_MS = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+const parseJwtDuration = (value) => {
+    if (typeof value !== 'string' || !/^[1-9]\d*(s|m|h|d)$/.test(value)) return null;
+    const match = value.match(/^([1-9]\d*)(s|m|h|d)$/);
+    const milliseconds = Number(match[1]) * JWT_DURATION_UNITS_MS[match[2]];
+    return Number.isSafeInteger(milliseconds) && milliseconds <= 7 * 86400000
+        ? milliseconds : null;
+};
+
 const config = {
-    port: Number(process.env.PORT) || 8080,
+    port: process.env.PORT === undefined ? 8080 : Number(process.env.PORT),
     nodeEnv: process.env.NODE_ENV || 'development',
     mongoUrl: process.env.MONGO_URL,
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1h',
+
+    get jwtCookieMaxAge() {
+        return parseJwtDuration(this.jwtExpiresIn);
+    },
 
     mailHost: process.env.MAIL_HOST,
     mailPort: process.env.MAIL_PORT,
@@ -25,6 +40,10 @@ export const validateConfig = () => {
         config.port > 65535
     ) {
         errors.push('PORT debe ser un número entero entre 1 y 65535.');
+    }
+
+    if (config.jwtCookieMaxAge === null) {
+        errors.push('JWT_EXPIRES_IN debe usar un formato como 30m, 1h o 1d (máximo 7d).');
     }
 
     if (!config.mongoUrl) {
