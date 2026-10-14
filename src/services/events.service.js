@@ -45,7 +45,7 @@ const ALLOWED_SORT_FIELDS = [
 ];
 
 class EventsService {
-    async getAllEvents(filters = {}, options = {}) {
+    async getAllEvents(filters = {}, options = {}, access = { scope: 'public' }) {
         const {
             page = 1,
             limit = 10,
@@ -97,8 +97,9 @@ class EventsService {
             throw generateError('El parámetro limit no puede superar 100', 400);
         }
 
+        const normalizedFilters = this.normalizeFilters(filters, access);
         const result = await eventsRepository.getAll(
-            filters,
+            normalizedFilters,
             {
                 page: pageNumber,
                 limit: limitNumber,
@@ -117,16 +118,80 @@ class EventsService {
         };
     }
 
-    async getEventById(id) {
-        const event = await eventsRepository.getById(id);
-
-        if (!event) {
-            throw generateError(
-                'Evento no encontrado',
-                404
-            );
+    normalizeFilters(filters, access) {
+        const allowed = ['status', 'category', 'location', 'organizer', 'dateFrom', 'dateTo'];
+        if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
+            throw generateError('Filtros inválidos', 400);
         }
+        for (const [key, value] of Object.entries(filters)) {
+            if (!allowed.includes(key) || typeof value !== 'string' || !value.trim()) {
+                throw generateError(`Filtro inválido: ${key}`, 400);
+            }
+        }
+        const query = {};
+        if (filters.status) {
+            if (!ALLOWED_STATUSES.includes(filters.status)) throw generateError('Estado de evento no válido', 400);
+            query.status = filters.status;
+        }
+        for (const key of ['category', 'location']) {
+            if (filters[key]) query[key] = filters[key].trim();
+        }
+        if (filters.organizer) {
+            if (!mongoose.isObjectIdOrHexString(filters.organizer)) throw generateError('Organizador inválido', 400);
+            query.organizer = filters.organizer;
+        }
+        const parseDate = (value, field) => {
+            if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)?$/.test(value)) {
+                throw generateError(`${field} debe ser una fecha ISO válida`, 400);
+            }
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime()) || (value.length === 10 && date.toISOString().slice(0, 10) !== value)) {
+                throw generateError(`${field} no es una fecha válida`, 400);
+            }
+            return date;
+        };
+        if (filters.dateFrom || filters.dateTo) {
+            query.date = {};
+            if (filters.dateFrom) query.date.$gte = parseDate(filters.dateFrom, 'dateFrom');
+            if (filters.dateTo) query.date.$lte = parseDate(filters.dateTo, 'dateTo');
+            if (query.date.$gte && query.date.$lte && query.date.$gte > query.date.$lte) {
+                throw generateError('dateFrom no puede ser posterior a dateTo', 400);
+            }
+        }
+        if (access.scope === 'public') {
+            if (filters.status && filters.status !== 'published') {
+                throw generateError('El catálogo público solo admite eventos publicados', 400);
+            }
+            query.status = 'published';
+        } else if (access.scope === 'mine') {
+            if (!access.user || !['organizer', 'admin'].includes(access.user.role)) throw generateError('No autorizado', 403);
+            if (filters.organizer && filters.organizer !== access.user.id.toString()) {
+                throw generateError('No podés consultar eventos de otro organizador', 403);
+            }
+            query.organizer = access.user.id;
+        } else if (access.scope === 'admin') {
+            if (access.user?.role !== 'admin') throw generateError('No autorizado', 403);
+        } else {
+            throw generateError('Tipo de consulta no permitido', 400);
+        }
+        return query;
+    }
 
+    async getEventById(id, access = { scope: 'public' }) {
+        if (!mongoose.isObjectIdOrHexString(id)) throw generateError('Identificador de evento inválido', 400);
+        const event = await eventsRepository.getById(id);
+        if (!event) throw generateError('Evento no encontrado', 404);
+        if (access.scope === 'public' && event.status !== 'published') {
+            throw generateError('Evento no encontrado', 404);
+        }
+        if (access.scope === 'managed') {
+            if (!access.user || !['organizer', 'admin'].includes(access.user.role)) throw generateError('No autorizado', 403);
+            if (access.user.role !== 'admin' && event.organizer.toString() !== access.user.id.toString()) {
+                throw generateError('No tenés permisos para consultar este evento', 403);
+            }
+        } else if (access.scope !== 'public') {
+            throw generateError('Tipo de consulta no permitido', 400);
+        }
         return event;
     }
 

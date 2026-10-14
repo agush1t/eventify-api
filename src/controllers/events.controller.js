@@ -3,86 +3,58 @@ import EventDTO from '../dtos/event.dto.js';
 
 const eventsService = new EventsService();
 
+function queryOptions(query) {
+    const { page = 1, limit = 10, sort = 'date', ...filters } = query;
+    return { filters, options: { page, limit, sort } };
+}
+
+function sendEvents(res, result) {
+    res.status(200).json({
+        status: 'success',
+        data: result.events.map(event => new EventDTO(event)),
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages
+    });
+}
+
 export const getEvents = async (req, res, next) => {
     try {
-        const {
-            status,
-            category,
-            location,
-            organizer,
-            dateFrom,
-            dateTo,
-            page = 1,
-            limit = 10,
-            sort = 'date'
-        } = req.query;
-
-        const filters = {};
-
-        if (status) {
-            filters.status = status;
-        }
-
-        if (category) {
-            filters.category = category;
-        }
-
-        if (location) {
-            filters.location = location;
-        }
-
-        if (organizer) {
-            filters.organizer = organizer;
-        }
-
-        if (dateFrom || dateTo) {
-            filters.date = {};
-
-            if (dateFrom) {
-                filters.date.$gte = new Date(dateFrom);
-            }
-
-            if (dateTo) {
-                filters.date.$lte = new Date(dateTo);
-            }
-        }
-
-        const result = await eventsService.getAllEvents(
-            filters,
-            {
-                page,
-                limit,
-                sort
-            }
-        );
-
-        res.status(200).json({
-            status: 'success',
-            data: result.events.map(
-                event => new EventDTO(event)
-            ),
-            page: result.page,
-            limit: result.limit,
-            total: result.total,
-            totalPages: result.totalPages
-        });
-    } catch (error) {
-        next(error);
-    }
+        const { filters, options } = queryOptions(req.query);
+        const result = await eventsService.getAllEvents(filters, options, { scope: 'public' });
+        sendEvents(res, result);
+    } catch (error) { next(error); }
 };
+
+export const getMyEvents = async (req, res, next) => {
+    try {
+        const { filters, options } = queryOptions(req.query);
+        const result = await eventsService.getAllEvents(filters, options, { scope: 'mine', user: req.user });
+        sendEvents(res, result);
+    } catch (error) { next(error); }
+};
+
+export const getAdminEvents = async (req, res, next) => {
+    try {
+        const { filters, options } = queryOptions(req.query);
+        const result = await eventsService.getAllEvents(filters, options, { scope: 'admin', user: req.user });
+        sendEvents(res, result);
+    } catch (error) { next(error); }
+};
+
 export const getEventById = async (req, res, next) => {
     try {
-        const { id } = req.params;
+        const event = await eventsService.getEventById(req.params.id, { scope: 'public' });
+        res.status(200).json({ status: 'success', payload: new EventDTO(event) });
+    } catch (error) { next(error); }
+};
 
-        const event = await eventsService.getEventById(id);
-
-        res.status(200).json({
-            status: 'success',
-            payload: new EventDTO(event)
-        });
-    } catch (error) {
-        next(error);
-    }
+export const getManagedEventById = async (req, res, next) => {
+    try {
+        const event = await eventsService.getEventById(req.params.id, { scope: 'managed', user: req.user });
+        res.status(200).json({ status: 'success', payload: new EventDTO(event) });
+    } catch (error) { next(error); }
 };
 
 export const createEvent = async (req, res, next) => {

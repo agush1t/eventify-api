@@ -3,6 +3,9 @@ import { Router } from 'express';
 import {
     getEvents,
     getEventById,
+    getMyEvents,
+    getAdminEvents,
+    getManagedEventById,
     createEvent,
     updateEvent,
     updateEventStatus
@@ -16,6 +19,9 @@ const router = Router();
 // Público
 router.get('/', getEvents);
 
+router.get('/mine', auth, authorize('organizer', 'admin'), getMyEvents);
+router.get('/admin/all', auth, authorize('admin'), getAdminEvents);
+router.get('/manage/:id', auth, authorize('organizer', 'admin'), getManagedEventById);
 router.get('/:id', getEventById);
 
 // Crear: organizer o admin

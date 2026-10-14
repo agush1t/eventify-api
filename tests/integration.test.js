@@ -844,3 +844,56 @@ test('etapa 4: token expirado o manipulado no permite acceder a current', async 
     const invalidResponse = await request(app).get('/api/sessions/current').set('Cookie', 'currentUser=token-invalido');
     assert.equal(invalidResponse.status, 401);
 });
+
+test('etapa 5: catálogo público muestra únicamente publicados y protege detalles', async () => {
+    const owner = await User.create({ first_name: 'Owner', last_name: 'Stage5', email: `owner5-${Date.now()}@example.com`, password: 'hash', role: 'organizer' });
+    const { default: Event } = await import('../src/models/Event.js');
+    const base = { description: 'Descripción', category: 'Tecnología', location: 'Buenos Aires', date: new Date(Date.now() + 86400000 * 30), capacity: 10, price: 0, organizer: owner._id };
+    const draft = await Event.create({ ...base, title: 'Privado etapa5', status: 'draft' });
+    const published = await Event.create({ ...base, title: 'Público etapa5', status: 'published' });
+    const cancelled = await Event.create({ ...base, title: 'Cancelado etapa5', status: 'cancelled' });
+    const listing = await request(app).get('/api/events');
+    assert.equal(listing.status, 200);
+    assert.ok(listing.body.data.some(event => event.id === published.id));
+    assert.ok(!listing.body.data.some(event => event.id === draft.id || event.id === cancelled.id));
+    assert.equal((await request(app).get(`/api/events/${draft.id}`)).status, 404);
+    assert.equal((await request(app).get(`/api/events/${cancelled.id}`)).status, 404);
+    assert.equal((await request(app).get(`/api/events/${published.id}`)).status, 200);
+    assert.equal((await request(app).get('/api/events/mine')).status, 401);
+    assert.equal((await request(app).get('/api/events/admin/all')).status, 401);
+});
+
+test('etapa 5: filtros inválidos devuelven 400', async () => {
+    for (const query of [
+        '?status=inexistente', '?status=draft', '?organizer=incorrecto',
+        '?dateFrom=hola', '?dateFrom=2027-12-01&dateTo=2027-01-01',
+        '?dateFrom=2027-02-30', '?status[]=published', '?page=0', '?limit=101'
+    ]) {
+        const response = await request(app).get(`/api/events${query}`);
+        assert.equal(response.status, 400, `Debe rechazar ${query}`);
+    }
+});
+
+test('etapa 5: organizador solo consulta sus eventos y admin consulta todos', async () => {
+    const owner = await User.create({ first_name: 'Owner', last_name: 'Stage5', email: `owner5-auth-${Date.now()}@example.com`, password: 'hash', role: 'organizer' });
+    const other = await User.create({ first_name: 'Other', last_name: 'Stage5', email: `other5-${Date.now()}@example.com`, password: 'hash', role: 'organizer' });
+    const admin = await User.create({ first_name: 'Admin', last_name: 'Stage5', email: `admin5-${Date.now()}@example.com`, password: 'hash', role: 'admin' });
+    const { default: Event } = await import('../src/models/Event.js');
+    const { default: config } = await import('../src/config/config.js');
+    const jwt = await import('jsonwebtoken');
+    const base = { description: 'Descripción', category: 'Tecnología', location: 'Buenos Aires', date: new Date(Date.now() + 86400000 * 30), capacity: 10, price: 0, status: 'draft' };
+    const ownEvent = await Event.create({ ...base, title: 'Mío etapa5', organizer: owner._id });
+    const otherEvent = await Event.create({ ...base, title: 'Otro etapa5', organizer: other._id });
+    const cookie = user => `currentUser=${jwt.default.sign({ id: user.id, role: user.role }, config.jwtSecret, { expiresIn: '1h' })}`;
+    const mine = await request(app).get('/api/events/mine').set('Cookie', cookie(owner));
+    assert.equal(mine.status, 200);
+    assert.ok(mine.body.data.some(event => event.id === ownEvent.id));
+    assert.ok(!mine.body.data.some(event => event.id === otherEvent.id));
+    assert.equal((await request(app).get(`/api/events/manage/${ownEvent.id}`).set('Cookie', cookie(owner))).status, 200);
+    assert.equal((await request(app).get(`/api/events/manage/${otherEvent.id}`).set('Cookie', cookie(owner))).status, 403);
+    assert.equal((await request(app).get('/api/events/admin/all').set('Cookie', cookie(owner))).status, 403);
+    const all = await request(app).get('/api/events/admin/all').set('Cookie', cookie(admin));
+    assert.equal(all.status, 200);
+    assert.ok(all.body.data.some(event => event.id === ownEvent.id));
+    assert.ok(all.body.data.some(event => event.id === otherEvent.id));
+});
