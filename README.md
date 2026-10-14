@@ -202,6 +202,28 @@ Se requieren los cuatro campos. El email se normaliza y valida, la contraseña d
 
 Los permisos se verifican mediante middlewares y, cuando corresponde, reglas de propiedad en los servicios.
 
+### Usuarios de prueba y asignación de roles
+
+El registro público mediante `POST /api/sessions/register` crea usuarios con el rol `user`. Por seguridad, no permite elegir los roles `organizer` ni `admin` desde la solicitud.
+
+Para probar los tres roles en un entorno de desarrollo:
+
+1. Registrar tres cuentas con correos diferentes mediante `POST /api/sessions/register`.
+2. Conectarse a la base de datos de desarrollo mediante MongoDB Compass.
+3. Abrir la colección `users`.
+4. Mantener la primera cuenta con el rol `user`.
+5. Cambiar el campo `role` de la segunda cuenta a `"organizer"`.
+6. Cambiar el campo `role` de la tercera cuenta a `"admin"`.
+7. Iniciar sesión con cada cuenta mediante `POST /api/sessions/login`.
+
+**Permisos de prueba:**
+
+- `user`: consultar eventos publicados, reservar entradas y cancelar inscripciones propias.
+- `organizer`: crear y administrar eventos propios, publicarlos y consultar sus inscripciones.
+- `admin`: administrar eventos y consultar usuarios e inscripciones según los permisos de la API.
+
+**Importante:** este procedimiento debe realizarse únicamente en una base de datos de desarrollo o pruebas. No se deben publicar contraseñas ni credenciales reales.
+
 ## Endpoints
 
 Todas las rutas comienzan con `/api`.
